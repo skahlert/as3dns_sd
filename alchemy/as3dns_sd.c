@@ -136,12 +136,14 @@ static OpContext	*NewContext(AS3_Val owner,const char *callbackName, const char 
 	return pContext;
 }
 
-static void			ReportError(AS3_Val target, AS3_Val service, AS3_Val err)//DNSServiceErrorType err)
+static void			ReportError(AS3_Val target, AS3_Val service, DNSServiceErrorType err) //AS3_Val err)
 // Invoke operationFailed() method on target with err.
 {
 	
-	//Muss ich void* pointer angeben, oder in AS3-Ding umwandeln???
-	AS3_Val params = AS3_Array("AS3ValType,AS3ValType", service,err);
+	//TODO: Convert DNSServiceErrorType to a AS3-Native class...
+	AS3_Val error = AS3_Ptr(err);
+	AS3_Val params = AS3_Array("AS3ValType,AS3ValType", service,error);
+	AS3_Release(error);
 	AS3_CallS("operationFailed",target,  params);
 	AS3_Release(params);
 }
@@ -254,6 +256,42 @@ static AS3_Val ProcessResults( void* data,AS3_Val args)
 #endif // AUTO_CALLBACKS
 }
 
+
+static void DNSSD_API	ServiceBrowseReply( DNSServiceRef sdRef _UNUSED, DNSServiceFlags flags, uint32_t interfaceIndex,
+										   DNSServiceErrorType errorCode, const char *serviceName, const char *regtype,
+										   const char *replyDomain, void *context)
+{
+	OpContext		*pContext = (OpContext*) context;
+	
+	SetupCallbackState( &pContext->Env);
+	
+	if ( pContext->ClientObj != NULL && pContext->Callback != NULL)
+	{
+		if ( errorCode == kDNSServiceErr_NoError)
+		{
+            AS3_Val _serviceName = AS3_String(serviceName);
+            AS3_Val _regtype = AS3_String(regtype);
+            AS3_Val _replyDomain = AS3_String(replyDomain);
+            AS3_Val _flags = AS3_Int(flags);
+            AS3_Val _interfaceIndex = AS3_Int(interfaceIndex);
+            AS3_Val params = AS3_Array("AS3ValType,IntVal,IntVal,StringVal,StringVal,StringVal",pContext->as3_Obj, _flags,_interfaceIndex,_serviceName,_regtype,_replyDomain);
+            AS3_Call(( flags & kDNSServiceFlagsAdd) != 0 ? pContext->Callback : pContext->Callback2,
+                       pContext->ClientObj,
+                       params);
+             AS3_Release(_serviceName);
+             AS3_Release(_regtype);
+             AS3_Release(_replyDomain);
+             AS3_Release(_flags);
+             AS3_Release(_interfaceIndex);
+		}
+		else
+			ReportError(  pContext->ClientObj, pContext->as3_Obj , errorCode);
+	}
+	
+	//TeardownCallbackState();
+}
+
+
 /* TODO:
  * Methods of the original to yet implement (or discard)
  *
@@ -287,38 +325,6 @@ static void	TeardownCallbackState( void )
 	// No teardown necessary if ProcessResults() has been called
 }
 #endif	// AUTO_CALLBACKS
-
-
-
-
-
-
-
-static void DNSSD_API	ServiceBrowseReply( DNSServiceRef sdRef _UNUSED, DNSServiceFlags flags, uint32_t interfaceIndex,
-										   DNSServiceErrorType errorCode, const char *serviceName, const char *regtype,
-										   const char *replyDomain, void *context)
-{
-	OpContext		*pContext = (OpContext*) context;
-	
-	SetupCallbackState( &pContext->Env);
-	
-	if ( pContext->ClientObj != NULL && pContext->Callback != NULL)
-	{
-		if ( errorCode == kDNSServiceErr_NoError)
-		{
-			(*pContext->Env)->CallVoidMethod( pContext->Env, pContext->ClientObj,
-											 ( flags & kDNSServiceFlagsAdd) != 0 ? pContext->Callback : pContext->Callback2,
-											 pContext->JavaObj, flags, interfaceIndex,
-											 (*pContext->Env)->NewStringUTF( pContext->Env, serviceName),
-											 (*pContext->Env)->NewStringUTF( pContext->Env, regtype),
-											 (*pContext->Env)->NewStringUTF( pContext->Env, replyDomain));
-		}
-		else
-			ReportError( pContext->Env, pContext->ClientObj, pContext->JavaObj, errorCode);
-	}
-	
-	TeardownCallbackState();
-}
 
 JNIEXPORT jint JNICALL Java_com_apple_dnssd_AppleBrowser_CreateBrowser( JNIEnv *pEnv, jobject pThis,
 																	   jint flags, jint ifIndex, jstring regType, jstring domain)
