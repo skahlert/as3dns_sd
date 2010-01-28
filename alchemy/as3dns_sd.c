@@ -213,6 +213,47 @@ static AS3_Val BlockForData( void* data,AS3_Val args)
 }
 
 
+static AS3_Val ProcessResults( void* data,AS3_Val args)
+/* Call through to DNSServiceProcessResult() while data remains on socket. */
+{
+#if !AUTO_CALLBACKS	// ProcessResults() not supported with AUTO_CALLBACKS 
+	
+	AS3_Val pThis; 
+	AS3_ArrayValue( args, "AS3ValType", pThis );
+	
+	AS3_Val contextField = AS3_GetS(pThis,"fNativeContext");
+	OpContext	*pContext = (OpContext*) AS3_PtrValue(contextField);
+	DNSServiceErrorType err = kDNSServiceErr_BadState;
+	
+	if ( pContext != NULL)
+	{
+		int				sd = DNSServiceRefSockFD( pContext->ServiceRef);
+		fd_set			readFDs;
+		struct timeval	zeroTimeout = { 0, 0 };
+		
+		//pContext->Env = pEnv;
+		
+		FD_ZERO( &readFDs);
+		FD_SET( sd, &readFDs);
+		
+		err = kDNSServiceErr_NoError;
+		if (0 < select(sd + 1, &readFDs, (fd_set*) NULL, (fd_set*) NULL, &zeroTimeout))
+		{
+			err = DNSServiceProcessResult(pContext->ServiceRef);
+			// Use caution here!
+			// We cannot touch any data structures associated with this operation!
+			// The DNSServiceProcessResult() routine should have invoked our callback,
+			// and our callback could have terminated the operation with op.stop();
+			// and that means HaltOperation() will have been called, which frees pContext.
+			// Basically, from here we just have to get out without touching any stale
+			// data structures that could blow up on us! Particularly, any attempt
+			// to loop here reading more results from the file descriptor is unsafe.
+		}
+	}
+	return AS3_Int(err);
+#endif // AUTO_CALLBACKS
+}
+
 
 
 
@@ -224,15 +265,19 @@ int main() {
 	AS3_Val initMethod = AS3_Function( NULL, InitLibrary );
 	AS3_Val haltOperationMethod = AS3_Function( NULL, HaltOperation );
 	AS3_Val blockForDataMethod = AS3_Function(NULL, BlockForData);
+	AS3_Val processResultsMethod = AS3_Function(NULL, ProcessResults);
 	
 	// construct an object that holds references to the functions
-	AS3_Val result = AS3_Object( "InitLibrary: AS3ValType,hasAutoCallbacks: AS3ValType,HaltOperation,BlockForData:IntVal ", initMethod,hasAutoCallbacksField,haltOperationMethod,blockForDataMethod );
+	AS3_Val result = AS3_Object( "InitLibrary: AS3ValType,hasAutoCallbacks: AS3ValType,HaltOperation,BlockForData:IntVal,ProcessResults:IntVal ", 
+								initMethod,hasAutoCallbacksField,haltOperationMethod,blockForDataMethod,processResultsMethod );
 	
 	
 	// Release
 	AS3_Release( initMethod );
     AS3_Release( hasAutoCallbacksField );
 	AS3_Release( haltOperationMethod );
+	AS3_Release( blockForDataMethod );
+	AS3_Release( processResultsMethod );
 	// notify that we initialized -- THIS DOES NOT RETURN!
 	AS3_LibInit( result );
 	
