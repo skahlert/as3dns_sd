@@ -274,7 +274,7 @@ static void DNSSD_API	ServiceBrowseReply( DNSServiceRef sdRef _UNUSED, DNSServic
             AS3_Val _replyDomain = AS3_String(replyDomain);
             AS3_Val _flags = AS3_Int(flags);
             AS3_Val _interfaceIndex = AS3_Int(interfaceIndex);
-            AS3_Val params = AS3_Array("AS3ValType,IntVal,IntVal,StringVal,StringVal,StringVal",pContext->as3_Obj, _flags,_interfaceIndex,_serviceName,_regtype,_replyDomain);
+            AS3_Val params = AS3_Array("AS3ValType,IntType ,IntType ,StrType ,StrType ,StrType ",pContext->as3_Obj, _flags,_interfaceIndex,_serviceName,_regtype,_replyDomain);
             AS3_Call(( flags & kDNSServiceFlagsAdd) != 0 ? pContext->Callback : pContext->Callback2,
                        pContext->ClientObj,
                        params);
