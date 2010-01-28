@@ -141,7 +141,7 @@ static void			ReportError(AS3_Val target, AS3_Val service, DNSServiceErrorType e
 {
 	
 	//TODO: Convert DNSServiceErrorType to a AS3-Native class...
-	AS3_Val error = AS3_Ptr(err);
+	AS3_Val error = AS3_Ptr(&err);
 	AS3_Val params = AS3_Array("AS3ValType,AS3ValType", service,error);
 	AS3_Release(error);
 	AS3_CallS("operationFailed",target,  params);
@@ -263,7 +263,7 @@ static void DNSSD_API	ServiceBrowseReply( DNSServiceRef sdRef _UNUSED, DNSServic
 {
 	OpContext		*pContext = (OpContext*) context;
 	
-	SetupCallbackState( &pContext->Env);
+	//SetupCallbackState( &pContext->Env);
 	
 	if ( pContext->ClientObj != NULL && pContext->Callback != NULL)
 	{
