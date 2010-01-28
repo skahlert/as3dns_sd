@@ -40,20 +40,47 @@
 
 
 
+#ifndef	AUTO_CALLBACKS
+#define	AUTO_CALLBACKS	0
+#endif
+
+#if !AUTO_CALLBACKS
+#ifdef _WIN32
+#include <winsock2.h>
+#else //_WIN32
+#include <sys/types.h>
+#include <sys/select.h>
+#endif // _WIN32
+#endif // AUTO_CALLBACKS
+
 #include <dns_sd.h>
 
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#ifdef _WIN32
+#include <winsock2.h>
+#include <iphlpapi.h>
+//static char	*	if_indextoname( DWORD ifIndex, char * nameBuff);
+//static DWORD	if_nametoindex( const char * nameStr );
+#define IF_NAMESIZE MAX_ADAPTER_NAME_LENGTH
+#else // _WIN32
+#include <sys/socket.h>
+//#include <net/if.h>
+#endif // _WIN32
 
 
 
-#include "AS3.h"
+//#include <syslog.h>
 
-
-
+// convenience definition 
 #ifdef __GNUC__
 #define	_UNUSED	__attribute__ ((unused))
 #else
 #define	_UNUSED
 #endif
+
+#include "AS3.h"
 
 enum {
 	kInterfaceVersion = 1		// Must match version in .jar file
@@ -144,6 +171,49 @@ static AS3_Val HaltOperation( void* data,AS3_Val args) //AS3_Val pThis)
 
 }
 
+static AS3_Val BlockForData( void* data,AS3_Val args)
+/* Block until data arrives, or one second passes. Returns 1 if data present, 0 otherwise. */
+{
+	// BlockForData() not supported with AUTO_CALLBACKS 
+#if !AUTO_CALLBACKS
+	AS3_Val pThis; 
+	AS3_ArrayValue( args, "AS3ValType", pThis );
+	
+	AS3_Val contextField = AS3_GetS(pThis,"fNativeContext");
+	OpContext	*pContext = (OpContext*) AS3_PtrValue(contextField);
+	if ( pContext != NULL)
+	{
+		fd_set			readFDs; //??
+		int				sd = DNSServiceRefSockFD( pContext->ServiceRef);
+		struct timeval	timeout = { 1, 0 };
+		FD_ZERO( &readFDs);
+		FD_SET( sd, &readFDs);
+		
+		// Q: Why do we poll here?
+		// A: Because there's no other thread-safe way to do it.
+		// Mac OS X terminates a select() call if you close one of the sockets it's listening on, but Linux does not,
+		// and arguably Linux is correct (See <http://www.ussg.iu.edu/hypermail/linux/kernel/0405.1/0418.html>)
+		// The problem is that the Mac OS X behaviour assumes that it's okay for one thread to close a socket while
+		// some other thread is monitoring that socket in select(), but the difficulty is that there's no general way
+		// to make that thread-safe, because there's no atomic way to enter select() and release a lock simultaneously.
+		// If we try to do this without holding any lock, then right as we jump to the select() routine,
+		// some other thread could stop our operation (thereby closing the socket),
+		// and then that thread (or even some third, unrelated thread)
+		// could do some other DNS-SD operation (or some other operation that opens a new file descriptor)
+		// and then we'd blindly resume our fall into the select() call, now blocking on a file descriptor
+		// that may coincidentally have the same numerical value, but is semantically unrelated
+		// to the true file descriptor we thought we were blocking on.
+		// We can't stop this race condition from happening, but at least if we wake up once a second we can detect
+		// when fNativeContext has gone to zero, and thereby discover that we were blocking on the wrong fd.
+		
+		if (select( sd + 1, &readFDs, (fd_set*) NULL, (fd_set*) NULL, &timeout) == 1) return AS3_Int(1);
+	}
+#endif // !AUTO_CALLBACKS
+	return AS3_Int(0);
+}
+
+
+
 
 
 //Muss an den schluss!!!!
@@ -153,9 +223,10 @@ int main() {
     
 	AS3_Val initMethod = AS3_Function( NULL, InitLibrary );
 	AS3_Val haltOperationMethod = AS3_Function( NULL, HaltOperation );
+	AS3_Val blockForDataMethod = AS3_Function(NULL, BlockForData);
 	
 	// construct an object that holds references to the functions
-	AS3_Val result = AS3_Object( "InitLibrary: AS3ValType,hasAutoCallbacks: AS3ValType,HaltOperation", initMethod,hasAutoCallbacksField,haltOperationMethod );
+	AS3_Val result = AS3_Object( "InitLibrary: AS3ValType,hasAutoCallbacks: AS3ValType,HaltOperation,BlockForData:IntVal ", initMethod,hasAutoCallbacksField,haltOperationMethod,blockForDataMethod );
 	
 	
 	// Release
