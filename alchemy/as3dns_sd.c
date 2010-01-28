@@ -1,3 +1,43 @@
+/* Copyright (c) 2010 Stefan Kahlert, unknown? visual + virtual design GmbH & Co. KG.
+ * All rights reserved.
+ * 
+ * This file is heavily based on the file JNISupport.c, which is distributed in
+ * the Bonjour sourcecode by Apple, Inc. See the original Copyright below.
+ *
+ * Changes in this file have been made to port the Bonjour functionality to AS3
+ * via the Alchemy SDK provided by Adobe.
+ *
+ * The code is, as of yet, far from working and is still in development.
+ *
+ * For more information contact Stefan Kahlert (kahlert@unknown.de)
+ *
+ */ 
+ 
+ 
+ /*
+ * Copyright (c) 2004 Apple Computer, Inc. All rights reserved.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ * 
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ * 
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ 
+
+ 
+ 
+ This file contains the platform support for DNSSD and related Java classes.
+	It is used to shim through to the underlying <dns_sd.h> API.
+ */
+
+
+
 
 
 #include <dns_sd.h>
