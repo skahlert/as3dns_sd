@@ -1,1 +1,2 @@
-gcc -I/Users/skt/alchemy/mDNSShared/ -L/Users/skt/alchemy/mDNSShared/ -llibdns_sd -O3 -Wall Flash_Zeroconf.c -swc -o Flash_Zeroconf.swc 
+alc-on
+gcc -Ilibdns_sd/include -Llibdns_sd/lib/ -llibdns_sd -O3 -Wall as3dns_sd.c -swc -o as3dns_sd.swc
