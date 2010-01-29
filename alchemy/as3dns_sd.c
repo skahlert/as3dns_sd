@@ -1094,8 +1094,7 @@ exit:
 //Muss an den schluss!!!!
 int main() {
  
-    AS3_Val hasAutoCallbacksField = AS3_False();
-    
+    AS3_Val hasAutoCallbacksField = AS3_True();
 	AS3_Val initMethod = AS3_Function( NULL, InitLibrary );
 	AS3_Val haltOperationMethod = AS3_Function( NULL, HaltOperation );
 	AS3_Val blockForDataMethod = AS3_Function(NULL, BlockForData);
@@ -1103,14 +1102,20 @@ int main() {
 	AS3_Val createBrowserMethod = AS3_Function(NULL, CreateBrowser);
 	
 	// construct an object that holds references to the functions
-	AS3_Val result = AS3_Object( "InitLibrary: IntType,hasAutoCallbacks: AS3ValType,HaltOperation,BlockForData:IntType,ProcessResults:IntType,CreateBrowser:IntType ", 
-								initMethod,
+	/*AS3_Val result = AS3_Object( "hasAutoCallbacks: AS3ValType,InitLibrary: AS3ValType,HaltOperation:AS3ValType,BlockForData:AS3ValType,ProcessResults:AS3ValType,CreateBrowser:AS3ValType ", 
 								hasAutoCallbacksField,
+								initMethod,
 								haltOperationMethod,
 								blockForDataMethod,
 								processResultsMethod,
-								createBrowserMethod);
+								createBrowserMethod);*/
 	
+	AS3_Val result = AS3_Object( "hasAutoCallbacks: IntType",hasAutoCallbacksField);
+	AS3_SetS( result,"InitLibrary",initMethod);
+	AS3_SetS( result,"HaltOperation",haltOperationMethod);
+	AS3_SetS( result,"BlockForData",blockForDataMethod);
+	AS3_SetS( result,"ProcessResults",processResultsMethod);
+	AS3_SetS( result,"CreateBrowser",createBrowserMethod);
 	
 	// Release
 	AS3_Release( initMethod );
@@ -1118,6 +1123,7 @@ int main() {
 	AS3_Release( haltOperationMethod );
 	AS3_Release( blockForDataMethod );
 	AS3_Release( processResultsMethod );
+	AS3_Release( createBrowserMethod );
 	// notify that we initialized -- THIS DOES NOT RETURN!
 	AS3_LibInit( result );
 	
