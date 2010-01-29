@@ -292,6 +292,49 @@ static void DNSSD_API	ServiceBrowseReply( DNSServiceRef sdRef _UNUSED, DNSServic
 }
 
 
+//JNIEXPORT jint JNICALL Java_com_apple_dnssd_AppleBrowser_CreateBrowser( JNIEnv *pEnv, jobject pThis,
+//																	   jint flags, jint ifIndex, jstring regType, jstring domain)
+static AS3_Val CreateBrowser( void* data,AS3_Val args)
+{
+	AS3_Val pThis,flags,ifIndex,regType,domain;
+	AS3_ArrayValue( args, "AS3ValType,IntType,IntType,StrType,StrType", pThis,flags,ifIndex,regType,domain );
+	
+	AS3_Val contextField = AS3_GetS(pThis,"fNativeContext");
+	OpContext	*pContext = (OpContext*) AS3_PtrValue(contextField);
+	DNSServiceErrorType		err = kDNSServiceErr_NoError;
+	
+	if ( pContext != 0)
+		pContext = NewContext( pThis, "serviceFound",
+							  "(Lcom/apple/dnssd/DNSSDService;IILjava/lang/String;Ljava/lang/String;Ljava/lang/String;)V");
+	else
+		err = kDNSServiceErr_BadParam;
+	
+	if ( pContext != NULL)
+	{
+		const char	*regStr = SafeGetUTFChars( pEnv, regType);
+		const char	*domainStr = SafeGetUTFChars( pEnv, domain);
+		
+		pContext->Callback2 = (*pEnv)->GetMethodID( pEnv,
+												   (*pEnv)->GetObjectClass( pEnv, pContext->ClientObj),
+												   "serviceLost", "(Lcom/apple/dnssd/DNSSDService;IILjava/lang/String;Ljava/lang/String;Ljava/lang/String;)V");
+		
+		err = DNSServiceBrowse( &pContext->ServiceRef, flags, ifIndex, regStr, domainStr, ServiceBrowseReply, pContext);
+		if ( err == kDNSServiceErr_NoError)
+		{
+			(*pEnv)->SetIntField( pEnv, pThis, contextField, (jint) pContext);
+		}
+		
+		SafeReleaseUTFChars( pEnv, regType, regStr);
+		SafeReleaseUTFChars( pEnv, domain, domainStr);
+	}
+	else
+		err = kDNSServiceErr_NoMemory;
+	
+	return err;
+}
+
+
+
 /* TODO:
  * Methods of the original to yet implement (or discard)
  *
