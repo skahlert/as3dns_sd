@@ -311,21 +311,18 @@ static AS3_Val CreateBrowser( void* data,AS3_Val args)
 	
 	if ( pContext != NULL)
 	{
-		AS3_Val	regStr = AS3_String(regType);
-		AS3_Val	domainStr = AS3_String(domain);
+		
 		pContext->Callback2 = AS3_GetS(pContext->ClientObj, "serviceLost");
 		
 		
-		err = DNSServiceBrowse( &pContext->ServiceRef, flags, ifIndex, regStr, domainStr, ServiceBrowseReply, pContext);
+		err = DNSServiceBrowse( &pContext->ServiceRef, AS3_IntValue(flags), AS3_IntValue(ifIndex), AS3_StringValue(regType), AS3_StringValue(domain), ServiceBrowseReply, pContext);
 		if ( err == kDNSServiceErr_NoError)
 		{
 			AS3_Val ptr = AS3_Ptr(pContext);
-			AS3_Val contextField = AS3_SetS(pThis,"fNativeContext",ptr);
+			AS3_SetS(pThis,"fNativeContext",ptr);
 			AS3_Release(ptr);
 		}
 		
-		AS3_Release(regStr);
-		AS3_Release(domainStr);
 	}
 	else
 		err = kDNSServiceErr_NoMemory;
@@ -1103,10 +1100,16 @@ int main() {
 	AS3_Val haltOperationMethod = AS3_Function( NULL, HaltOperation );
 	AS3_Val blockForDataMethod = AS3_Function(NULL, BlockForData);
 	AS3_Val processResultsMethod = AS3_Function(NULL, ProcessResults);
+	AS3_Val createBrowserMethod = AS3_Function(NULL, CreateBrowser);
 	
 	// construct an object that holds references to the functions
-	AS3_Val result = AS3_Object( "InitLibrary: AS3ValType,hasAutoCallbacks: AS3ValType,HaltOperation,BlockForData:IntVal,ProcessResults:IntVal ", 
-								initMethod,hasAutoCallbacksField,haltOperationMethod,blockForDataMethod,processResultsMethod );
+	AS3_Val result = AS3_Object( "InitLibrary: IntType,hasAutoCallbacks: AS3ValType,HaltOperation,BlockForData:IntType,ProcessResults:IntType,CreateBrowser:IntType ", 
+								initMethod,
+								hasAutoCallbacksField,
+								haltOperationMethod,
+								blockForDataMethod,
+								processResultsMethod,
+								createBrowserMethod);
 	
 	
 	// Release
