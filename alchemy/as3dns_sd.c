@@ -331,6 +331,62 @@ static AS3_Val CreateBrowser( void* data,AS3_Val args)
 }
 
 
+static void DNSSD_API	ServiceResolveReply( DNSServiceRef sdRef _UNUSED, DNSServiceFlags flags, uint32_t interfaceIndex,
+											DNSServiceErrorType errorCode, const char *fullname, const char *hosttarget,
+											uint16_t port, uint16_t txtLen, const unsigned char *txtRecord, void *context)
+{
+	OpContext		*pContext = (OpContext*) context;
+	AS3_Val txtObj;
+	
+	//SetupCallbackState( &pContext->Env);
+	AS3_Val dnssd_namespace = AS3_String("de.unknown.dnssd");
+	AS3_Val TXTRecord_class = AS3_NSGetS(dnssd_namespace, "TXTRecord");
+	AS3_Val txtCtor = AS3_New(TXTRecord_class, NULL); //Params????
+	AS3_Release(dnssd_namespace);
+	AS3_Release(TXTRecord_class);
+	
+	
+	
+	if ( pContext->ClientObj != NULL && pContext->Callback != NULL && txtCtor != NULL &&
+		NULL != ( txtObj = AS3_String((const char *)txtRecord)))
+	{
+		if ( errorCode == kDNSServiceErr_NoError)
+		{
+			
+			
+			AS3_Val _port = AS3_Int(port);
+            AS3_Val _fullname = AS3_String(fullname);
+            AS3_Val _hosttarget = AS3_String(hosttarget);
+            AS3_Val _flags = AS3_Int(flags);
+            AS3_Val _interfaceIndex = AS3_Int(interfaceIndex); 
+			
+			AS3_Val params = AS3_Array("AS3ValType,IntType ,IntType ,StrType ,StrType ,StrType ",
+									   pContext->as3_Obj,
+									   _flags,
+									   _interfaceIndex,
+									   _fullname,
+									   _hosttarget,
+									   _port,
+									   txtObj);
+			
+			AS3_Call(pContext->Callback, pContext->ClientObj,params);
+			AS3_Release(_port);
+			AS3_Release(_fullname);
+			AS3_Release(_hosttarget);
+			AS3_Release(_flags);
+			AS3_Release(_interfaceIndex);
+			
+			AS3_Release(txtObj);
+		}
+		else
+			ReportError( pContext->ClientObj, pContext->as3_Obj, errorCode);
+	}
+	
+	//TeardownCallbackState();
+}
+
+
+
 
 /* TODO:
  * Methods of the original to yet implement (or discard)
@@ -366,91 +422,7 @@ static void	TeardownCallbackState( void )
 }
 #endif	// AUTO_CALLBACKS
 
-JNIEXPORT jint JNICALL Java_com_apple_dnssd_AppleBrowser_CreateBrowser( JNIEnv *pEnv, jobject pThis,
-																	   jint flags, jint ifIndex, jstring regType, jstring domain)
-{
-	jclass					cls = (*pEnv)->GetObjectClass( pEnv, pThis);
-	jfieldID				contextField = (*pEnv)->GetFieldID( pEnv, cls, "fNativeContext", "I");
-	OpContext				*pContext = NULL;
-	DNSServiceErrorType		err = kDNSServiceErr_NoError;
-	
-	if ( contextField != 0)
-		pContext = NewContext( pEnv, pThis, "serviceFound",
-							  "(Lcom/apple/dnssd/DNSSDService;IILjava/lang/String;Ljava/lang/String;Ljava/lang/String;)V");
-	else
-		err = kDNSServiceErr_BadParam;
-	
-	if ( pContext != NULL)
-	{
-		const char	*regStr = SafeGetUTFChars( pEnv, regType);
-		const char	*domainStr = SafeGetUTFChars( pEnv, domain);
-		
-		pContext->Callback2 = (*pEnv)->GetMethodID( pEnv,
-												   (*pEnv)->GetObjectClass( pEnv, pContext->ClientObj),
-												   "serviceLost", "(Lcom/apple/dnssd/DNSSDService;IILjava/lang/String;Ljava/lang/String;Ljava/lang/String;)V");
-		
-		err = DNSServiceBrowse( &pContext->ServiceRef, flags, ifIndex, regStr, domainStr, ServiceBrowseReply, pContext);
-		if ( err == kDNSServiceErr_NoError)
-		{
-			(*pEnv)->SetIntField( pEnv, pThis, contextField, (jint) pContext);
-		}
-		
-		SafeReleaseUTFChars( pEnv, regType, regStr);
-		SafeReleaseUTFChars( pEnv, domain, domainStr);
-	}
-	else
-		err = kDNSServiceErr_NoMemory;
-	
-	return err;
-}
 
-
-static void DNSSD_API	ServiceResolveReply( DNSServiceRef sdRef _UNUSED, DNSServiceFlags flags, uint32_t interfaceIndex,
-											DNSServiceErrorType errorCode, const char *fullname, const char *hosttarget,
-											uint16_t port, uint16_t txtLen, const unsigned char *txtRecord, void *context)
-{
-	OpContext		*pContext = (OpContext*) context;
-	jclass			txtCls;
-	jmethodID		txtCtor;
-	jbyteArray		txtBytes;
-	jobject			txtObj;
-	jbyte			*pBytes;
-	
-	SetupCallbackState( &pContext->Env);
-	
-	txtCls = (*pContext->Env)->FindClass( pContext->Env, "com/apple/dnssd/TXTRecord");
-	txtCtor = (*pContext->Env)->GetMethodID( pContext->Env, txtCls, "<init>", "([B)V");
-	
-	if ( pContext->ClientObj != NULL && pContext->Callback != NULL && txtCtor != NULL &&
-		NULL != ( txtBytes = (*pContext->Env)->NewByteArray( pContext->Env, txtLen)))
-	{
-		if ( errorCode == kDNSServiceErr_NoError)
-		{
-			// Since Java ints are defined to be big-endian, we canonicalize 'port' from a 16-bit
-			// pattern into a number here.
-			port = ( ((unsigned char*) &port)[0] << 8) | ((unsigned char*) &port)[1];
-			
-			// Initialize txtBytes with contents of txtRecord
-			pBytes = (*pContext->Env)->GetByteArrayElements( pContext->Env, txtBytes, NULL);
-			memcpy( pBytes, txtRecord, txtLen);
-			(*pContext->Env)->ReleaseByteArrayElements( pContext->Env, txtBytes, pBytes, JNI_COMMIT);
-			
-			// Construct txtObj with txtBytes
-			txtObj = (*pContext->Env)->NewObject( pContext->Env, txtCls, txtCtor, txtBytes);
-			(*pContext->Env)->DeleteLocalRef( pContext->Env, txtBytes);
-			
-			(*pContext->Env)->CallVoidMethod( pContext->Env, pContext->ClientObj, pContext->Callback,
-											 pContext->JavaObj, flags, interfaceIndex,
-											 (*pContext->Env)->NewStringUTF( pContext->Env, fullname),
-											 (*pContext->Env)->NewStringUTF( pContext->Env, hosttarget),
-											 port, txtObj);
-		}
-		else
-			ReportError( pContext->Env, pContext->ClientObj, pContext->JavaObj, errorCode);
-	}
-	
-	TeardownCallbackState();
-}
 
 JNIEXPORT jint JNICALL Java_com_apple_dnssd_AppleResolver_CreateResolver( JNIEnv *pEnv, jobject pThis,
 																		 jint flags, jint ifIndex, jstring serviceName, jstring regType, jstring domain)
@@ -1100,7 +1072,7 @@ int main() {
 	AS3_Val blockForDataMethod = AS3_Function(NULL, BlockForData);
 	AS3_Val processResultsMethod = AS3_Function(NULL, ProcessResults);
 	AS3_Val createBrowserMethod = AS3_Function(NULL, CreateBrowser);
-	
+
 	// construct an object that holds references to the functions
 	/*AS3_Val result = AS3_Object( "hasAutoCallbacks: AS3ValType,InitLibrary: AS3ValType,HaltOperation:AS3ValType,BlockForData:AS3ValType,ProcessResults:AS3ValType,CreateBrowser:AS3ValType ", 
 								hasAutoCallbacksField,
@@ -1116,6 +1088,7 @@ int main() {
 	AS3_SetS( result,"BlockForData",blockForDataMethod);
 	AS3_SetS( result,"ProcessResults",processResultsMethod);
 	AS3_SetS( result,"CreateBrowser",createBrowserMethod);
+
 	
 	// Release
 	AS3_Release( initMethod );
@@ -1124,6 +1097,7 @@ int main() {
 	AS3_Release( blockForDataMethod );
 	AS3_Release( processResultsMethod );
 	AS3_Release( createBrowserMethod );
+
 	// notify that we initialized -- THIS DOES NOT RETURN!
 	AS3_LibInit( result );
 	
