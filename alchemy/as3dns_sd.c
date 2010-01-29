@@ -109,226 +109,28 @@ struct	OpContext
 //JNIEXPORT jint JNICALL Java_com_apple_dnssd_AppleDNSSD_InitLibrary( JNIEnv *pEnv, jclass cls, jint callerVersion)
 static AS3_Val InitLibrary( void* data,AS3_Val args)
 {
+
 	int callerVersion = 0;
     AS3_ArrayValue( args, "IntType", &callerVersion );
-
+	AS3_Val tmp = AS3_Number(-1.0);
+	AS3_Trace(AS3_Number(1.0));
+	AS3_Trace(AS3_Number(1000.0));
+	AS3_Trace(tmp);
+	AS3_Trace(AS3_Number(-1.0));
+	
 	if ( callerVersion != kInterfaceVersion)
-		return AS3_Int(kDNSServiceErr_Incompatible);
-
-	return AS3_Int(kDNSServiceErr_NoError);
-}
-
-static OpContext	*NewContext(AS3_Val owner,const char *callbackName, const char *callbackSig)
-// Create and initialize a new OpContext.
-{
-	OpContext				*pContext = (OpContext*) malloc( sizeof *pContext);
-	
-	if ( pContext != NULL)
-	{
-		pContext->ServiceRef=NULL;
-		pContext->as3_Obj = owner;	
-		pContext->ClientObj = AS3_GetS(owner,"fListener");
-		
-		pContext->Callback = AS3_GetS(pContext->ClientObj, callbackName);
-		pContext->Callback2 = AS3_Null();		// not always used
+	{	
+		tmp= AS3_Int(kDNSServiceErr_Incompatible);
+		//return AS3_Number((double)kDNSServiceErr_Incompatible);
+	}else {
+		tmp= AS3_Int(0);
 	}
+	AS3_Trace(tmp);
+	return tmp;
 	
-	return pContext;
+	//return AS3_String("test2");
 }
 
-static void			ReportError(AS3_Val target, AS3_Val service, DNSServiceErrorType err) //AS3_Val err)
-// Invoke operationFailed() method on target with err.
-{
-	
-	//TODO: Convert DNSServiceErrorType to a AS3-Native class...
-	AS3_Val error = AS3_Ptr(&err);
-	AS3_Val params = AS3_Array("AS3ValType,AS3ValType", service,error);
-	AS3_Release(error);
-	AS3_CallS("operationFailed",target,  params);
-	AS3_Release(params);
-}
-
-static AS3_Val HaltOperation( void* data,AS3_Val args) //AS3_Val pThis)
-/* Deallocate the dns_sd service browser and set the Java object's fNativeContext field to 0. */
-{
-	AS3_Val pThis; 
-	AS3_ArrayValue( args, "AS3ValType", pThis );
-	
-	
-	AS3_Val contextField = AS3_GetS(pThis,"fNativeContext");
-	OpContext	*pContext = (OpContext*) AS3_PtrValue(contextField);
-	if ( pContext != NULL)
-	{
-		// MUST clear fNativeContext first, BEFORE calling DNSServiceRefDeallocate()
-		
-		AS3_SetS(pThis,"fNativeContext",AS3_Null());
-		if ( pContext->ServiceRef != NULL)
-			DNSServiceRefDeallocate( pContext->ServiceRef);
-		
-		AS3_Release(pContext->as3_Obj);
-		AS3_Release(pContext->ClientObj);
-		free( pContext);
-	}
-	return AS3_Undefined();
-
-}
-
-static AS3_Val BlockForData( void* data,AS3_Val args)
-/* Block until data arrives, or one second passes. Returns 1 if data present, 0 otherwise. */
-{
-	// BlockForData() not supported with AUTO_CALLBACKS 
-#if !AUTO_CALLBACKS
-	AS3_Val pThis; 
-	AS3_ArrayValue( args, "AS3ValType", pThis );
-	
-	AS3_Val contextField = AS3_GetS(pThis,"fNativeContext");
-	OpContext	*pContext = (OpContext*) AS3_PtrValue(contextField);
-	if ( pContext != NULL)
-	{
-		fd_set			readFDs; //??
-		int				sd = DNSServiceRefSockFD( pContext->ServiceRef);
-		struct timeval	timeout = { 1, 0 };
-		FD_ZERO( &readFDs);
-		FD_SET( sd, &readFDs);
-		
-		// Q: Why do we poll here?
-		// A: Because there's no other thread-safe way to do it.
-		// Mac OS X terminates a select() call if you close one of the sockets it's listening on, but Linux does not,
-		// and arguably Linux is correct (See <http://www.ussg.iu.edu/hypermail/linux/kernel/0405.1/0418.html>)
-		// The problem is that the Mac OS X behaviour assumes that it's okay for one thread to close a socket while
-		// some other thread is monitoring that socket in select(), but the difficulty is that there's no general way
-		// to make that thread-safe, because there's no atomic way to enter select() and release a lock simultaneously.
-		// If we try to do this without holding any lock, then right as we jump to the select() routine,
-		// some other thread could stop our operation (thereby closing the socket),
-		// and then that thread (or even some third, unrelated thread)
-		// could do some other DNS-SD operation (or some other operation that opens a new file descriptor)
-		// and then we'd blindly resume our fall into the select() call, now blocking on a file descriptor
-		// that may coincidentally have the same numerical value, but is semantically unrelated
-		// to the true file descriptor we thought we were blocking on.
-		// We can't stop this race condition from happening, but at least if we wake up once a second we can detect
-		// when fNativeContext has gone to zero, and thereby discover that we were blocking on the wrong fd.
-		
-		if (select( sd + 1, &readFDs, (fd_set*) NULL, (fd_set*) NULL, &timeout) == 1) return AS3_Int(1);
-	}
-#endif // !AUTO_CALLBACKS
-	return AS3_Int(0);
-}
-
-
-static AS3_Val ProcessResults( void* data,AS3_Val args)
-/* Call through to DNSServiceProcessResult() while data remains on socket. */
-{
-#if !AUTO_CALLBACKS	// ProcessResults() not supported with AUTO_CALLBACKS 
-	
-	AS3_Val pThis; 
-	AS3_ArrayValue( args, "AS3ValType", pThis );
-	
-	AS3_Val contextField = AS3_GetS(pThis,"fNativeContext");
-	OpContext	*pContext = (OpContext*) AS3_PtrValue(contextField);
-	DNSServiceErrorType err = kDNSServiceErr_BadState;
-	
-	if ( pContext != NULL)
-	{
-		int				sd = DNSServiceRefSockFD( pContext->ServiceRef);
-		fd_set			readFDs;
-		struct timeval	zeroTimeout = { 0, 0 };
-		
-		//pContext->Env = pEnv;
-		
-		FD_ZERO( &readFDs);
-		FD_SET( sd, &readFDs);
-		
-		err = kDNSServiceErr_NoError;
-		if (0 < select(sd + 1, &readFDs, (fd_set*) NULL, (fd_set*) NULL, &zeroTimeout))
-		{
-			err = DNSServiceProcessResult(pContext->ServiceRef);
-			// Use caution here!
-			// We cannot touch any data structures associated with this operation!
-			// The DNSServiceProcessResult() routine should have invoked our callback,
-			// and our callback could have terminated the operation with op.stop();
-			// and that means HaltOperation() will have been called, which frees pContext.
-			// Basically, from here we just have to get out without touching any stale
-			// data structures that could blow up on us! Particularly, any attempt
-			// to loop here reading more results from the file descriptor is unsafe.
-		}
-	}
-	return AS3_Int(err);
-#endif // AUTO_CALLBACKS
-}
-
-
-static void DNSSD_API	ServiceBrowseReply( DNSServiceRef sdRef _UNUSED, DNSServiceFlags flags, uint32_t interfaceIndex,
-										   DNSServiceErrorType errorCode, const char *serviceName, const char *regtype,
-										   const char *replyDomain, void *context)
-{
-	OpContext		*pContext = (OpContext*) context;
-	
-	//SetupCallbackState( &pContext->Env);
-	
-	if ( pContext->ClientObj != NULL && pContext->Callback != NULL)
-	{
-		if ( errorCode == kDNSServiceErr_NoError)
-		{
-            AS3_Val _serviceName = AS3_String(serviceName);
-            AS3_Val _regtype = AS3_String(regtype);
-            AS3_Val _replyDomain = AS3_String(replyDomain);
-            AS3_Val _flags = AS3_Int(flags);
-            AS3_Val _interfaceIndex = AS3_Int(interfaceIndex);
-            AS3_Val params = AS3_Array("AS3ValType,IntType ,IntType ,StrType ,StrType ,StrType ",pContext->as3_Obj, _flags,_interfaceIndex,_serviceName,_regtype,_replyDomain);
-            AS3_Call(( flags & kDNSServiceFlagsAdd) != 0 ? pContext->Callback : pContext->Callback2,
-                       pContext->ClientObj,
-                       params);
-             AS3_Release(_serviceName);
-             AS3_Release(_regtype);
-             AS3_Release(_replyDomain);
-             AS3_Release(_flags);
-             AS3_Release(_interfaceIndex);
-		}
-		else
-			ReportError(  pContext->ClientObj, pContext->as3_Obj , errorCode);
-	}
-	
-	//TeardownCallbackState();
-}
-
-
-//JNIEXPORT jint JNICALL Java_com_apple_dnssd_AppleBrowser_CreateBrowser( JNIEnv *pEnv, jobject pThis,
-//																	   jint flags, jint ifIndex, jstring regType, jstring domain)
-static AS3_Val CreateBrowser( void* data,AS3_Val args)
-{
-	AS3_Val pThis,flags,ifIndex,regType,domain;
-	AS3_ArrayValue( args, "AS3ValType,IntType,IntType,StrType,StrType", pThis,flags,ifIndex,regType,domain );
-	
-	AS3_Val contextField = AS3_GetS(pThis,"fNativeContext");
-	OpContext	*pContext = (OpContext*) AS3_PtrValue(contextField);
-	DNSServiceErrorType		err = kDNSServiceErr_NoError;
-	
-	if ( pContext != 0)
-		pContext = NewContext( pThis, "serviceFound",
-							  "(Lcom/apple/dnssd/DNSSDService;IILjava/lang/String;Ljava/lang/String;Ljava/lang/String;)V");
-	else
-		err = kDNSServiceErr_BadParam;
-	
-	if ( pContext != NULL)
-	{
-		
-		pContext->Callback2 = AS3_GetS(pContext->ClientObj, "serviceLost");
-		
-		
-		err = DNSServiceBrowse( &pContext->ServiceRef, AS3_IntValue(flags), AS3_IntValue(ifIndex), AS3_StringValue(regType), AS3_StringValue(domain), ServiceBrowseReply, pContext);
-		if ( err == kDNSServiceErr_NoError)
-		{
-			AS3_Val ptr = AS3_Ptr(pContext);
-			AS3_SetS(pThis,"fNativeContext",ptr);
-			AS3_Release(ptr);
-		}
-		
-	}
-	else
-		err = kDNSServiceErr_NoMemory;
-	
-	return AS3_Int(err);
-}
 
 
 
@@ -1097,27 +899,27 @@ int main() {
     AS3_Val hasAutoCallbacksField = AS3_False();
     
 	AS3_Val initMethod = AS3_Function( NULL, InitLibrary );
-	AS3_Val haltOperationMethod = AS3_Function( NULL, HaltOperation );
-	AS3_Val blockForDataMethod = AS3_Function(NULL, BlockForData);
-	AS3_Val processResultsMethod = AS3_Function(NULL, ProcessResults);
-	AS3_Val createBrowserMethod = AS3_Function(NULL, CreateBrowser);
+	//AS3_Val haltOperationMethod = AS3_Function( NULL, HaltOperation );
+	//AS3_Val blockForDataMethod = AS3_Function(NULL, BlockForData);
+	//AS3_Val processResultsMethod = AS3_Function(NULL, ProcessResults);
+	//AS3_Val createBrowserMethod = AS3_Function(NULL, CreateBrowser);
 	
 	// construct an object that holds references to the functions
-	AS3_Val result = AS3_Object( "InitLibrary: IntType,hasAutoCallbacks: AS3ValType,HaltOperation,BlockForData:IntType,ProcessResults:IntType,CreateBrowser:IntType ", 
-								initMethod,
-								hasAutoCallbacksField,
-								haltOperationMethod,
-								blockForDataMethod,
-								processResultsMethod,
-								createBrowserMethod);
+	AS3_Val result = AS3_Object( "InitLibrary:AS3ValType",initMethod);
+	//AS3_Val result = AS3_Object( "hasAutoCallbacks: IntType",hasAutoCallbacksField);
+
+								//haltOperationMethod,
+								//blockForDataMethod,
+								//processResultsMethod,
+								//createBrowserMethod);
 	
 	
 	// Release
 	AS3_Release( initMethod );
     AS3_Release( hasAutoCallbacksField );
-	AS3_Release( haltOperationMethod );
-	AS3_Release( blockForDataMethod );
-	AS3_Release( processResultsMethod );
+	//AS3_Release( haltOperationMethod );
+	//AS3_Release( blockForDataMethod );
+	//AS3_Release( processResultsMethod );
 	// notify that we initialized -- THIS DOES NOT RETURN!
 	AS3_LibInit( result );
 	
