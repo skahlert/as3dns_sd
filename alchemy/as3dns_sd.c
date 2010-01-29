@@ -311,26 +311,26 @@ static AS3_Val CreateBrowser( void* data,AS3_Val args)
 	
 	if ( pContext != NULL)
 	{
-		const char	*regStr = SafeGetUTFChars( pEnv, regType);
-		const char	*domainStr = SafeGetUTFChars( pEnv, domain);
+		AS3_Val	regStr = AS3_String(regType);
+		AS3_Val	domainStr = AS3_String(domain);
+		pContext->Callback2 = AS3_GetS(pContext->ClientObj, "serviceLost");
 		
-		pContext->Callback2 = (*pEnv)->GetMethodID( pEnv,
-												   (*pEnv)->GetObjectClass( pEnv, pContext->ClientObj),
-												   "serviceLost", "(Lcom/apple/dnssd/DNSSDService;IILjava/lang/String;Ljava/lang/String;Ljava/lang/String;)V");
 		
 		err = DNSServiceBrowse( &pContext->ServiceRef, flags, ifIndex, regStr, domainStr, ServiceBrowseReply, pContext);
 		if ( err == kDNSServiceErr_NoError)
 		{
-			(*pEnv)->SetIntField( pEnv, pThis, contextField, (jint) pContext);
+			AS3_Val ptr = AS3_Ptr(pContext);
+			AS3_Val contextField = AS3_SetS(pThis,"fNativeContext",ptr);
+			AS3_Release(ptr);
 		}
 		
-		SafeReleaseUTFChars( pEnv, regType, regStr);
-		SafeReleaseUTFChars( pEnv, domain, domainStr);
+		AS3_Release(regStr);
+		AS3_Release(domainStr);
 	}
 	else
 		err = kDNSServiceErr_NoMemory;
 	
-	return err;
+	return AS3_Int(err);
 }
 
 
