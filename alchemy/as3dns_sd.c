@@ -385,7 +385,46 @@ static void DNSSD_API	ServiceResolveReply( DNSServiceRef sdRef _UNUSED, DNSServi
 	//TeardownCallbackState();
 }
 
-
+//JNIEXPORT jint JNICALL Java_com_apple_dnssd_AppleResolver_CreateResolver( JNIEnv *pEnv, jobject pThis,
+//																		 jint flags, jint ifIndex, jstring serviceName, jstring regType, jstring domain)
+static AS3_Val CreateResolver( void* data,AS3_Val args)
+{
+	AS3_Val pThis,flags,ifIndex,serviceName,regType,domain;
+	AS3_ArrayValue( args, "AS3ValType,IntType,IntType,StrType,StrType,StrType", pThis,flags,ifIndex,regType,serviceName,domain );
+	
+	AS3_Val contextField = AS3_GetS(pThis,"fNativeContext");
+	OpContext	*pContext = (OpContext*) AS3_PtrValue(contextField);
+	DNSServiceErrorType		err = kDNSServiceErr_NoError;
+	
+	if ( contextField != 0)
+		pContext = NewContext( pThis, "serviceResolved",
+							  "(Lcom/apple/dnssd/DNSSDService;IILjava/lang/String;Ljava/lang/String;ILcom/apple/dnssd/TXTRecord;)V");
+	else
+		err = kDNSServiceErr_BadParam;
+	
+	if ( pContext != NULL)
+	{
+		const char	*servStr = AS3_StrValue(serviceName);
+		const char	*regStr = AS3_StrValue(regType);
+		const char	*domainStr = AS3_StrValue(domain);
+		
+		err = DNSServiceResolve( &pContext->ServiceRef, AS3_IntValue(flags), AS3_IntValue(ifIndex),
+								servStr, regStr, domainStr, ServiceResolveReply, pContext);
+		if ( err == kDNSServiceErr_NoError)
+		{
+			AS3_Val _pContext= AS3_Ptr(pContext);
+            AS3_SetS(pThis,"fNativeContext",_pContext);
+            AS3_Release(_pContext);
+		}
+        free(servStr);
+        free(regStr);
+        free(domainStr);
+	}
+	else
+		err = kDNSServiceErr_NoMemory;
+	
+	return AS3_Int(err);
+}
 
 
 /* TODO:
