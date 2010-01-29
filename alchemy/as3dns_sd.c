@@ -113,7 +113,7 @@ static AS3_Val InitLibrary( void* data,AS3_Val args)
     AS3_ArrayValue( args, "IntType", &callerVersion );
 
 	if ( callerVersion != kInterfaceVersion)
-		return AS3_Int(-kDNSServiceErr_Incompatible);
+		return AS3_Int(kDNSServiceErr_Incompatible);
 
 	return AS3_Int(kDNSServiceErr_NoError);
 }
