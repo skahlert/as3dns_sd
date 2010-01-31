@@ -530,7 +530,47 @@ static AS3_Val BeginRegister( void* data,AS3_Val args)
 }
 
 
-
+//JNIEXPORT jint JNICALL Java_com_apple_dnssd_AppleRegistration_AddRecord( JNIEnv *pEnv, jobject pThis,
+//																		jint flags, jint rrType, jbyteArray rData, jint ttl, jobject destObj)
+static AS3_Val AddRecord( void* data,AS3_Val args)
+{
+	AS3_Val pThis,ifIndex,flags,rrType,rData,ttl,destObj;
+	AS3_ArrayValue( args, "AS3ValType,IntType,IntType,IntType,StrType,IntType,AS3ValType", pThis,ifIndex,flags,rrType,rData,ttl,destObj);
+	
+	AS3_Val contextField = AS3_GetS(pThis,"fNativeContext");
+	OpContext	*pContext;
+    
+    AS3_Val recField = AS3_GetS(pThis,"fRecord");
+    
+    
+	DNSServiceErrorType		err = kDNSServiceErr_NoError;
+	//jbyte					*pBytes;
+	uint16_t                numBytes;
+	DNSRecordRef			recRef;
+	
+	if ( contextField != NULL)
+		pContext = (OpContext*) AS3_PtrValue(contextField);
+	if ( pContext == NULL || pContext->ServiceRef == NULL)
+		return AS3_Int(abs(kDNSServiceErr_BadParam));
+	
+	char * _rData = AS3_StringValue(rData);
+	//pBytes = (*pEnv)->GetByteArrayElements( pEnv, rData, NULL);
+	numBytes = _rData ? sizeof(_rData)/sizeof(char) : 0;
+	
+	err = DNSServiceAddRecord( pContext->ServiceRef, &recRef, AS3_IntValue(flags), AS3_IntValue(rrType), numBytes, _rData, AS3_IntValue(ttl));
+	if ( err == kDNSServiceErr_NoError)
+	{
+		AS3_Val ref=AS3_Ptr(recRef);
+        AS3_Set(recField, pThis,  ref);
+        AS3_Release(ref);
+        //(*pEnv)->SetIntField( pEnv, destObj, recField, (jint) recRef);
+	}
+	
+	if ( _rData != NULL)
+		free(_rData);
+	
+	return AS3_Int(abs(err));
+}
 
 /* TODO:
  * Methods of the original to yet implement (or discard)
@@ -570,38 +610,7 @@ static void	TeardownCallbackState( void )
 
 
 
-JNIEXPORT jint JNICALL Java_com_apple_dnssd_AppleRegistration_AddRecord( JNIEnv *pEnv, jobject pThis,
-																		jint flags, jint rrType, jbyteArray rData, jint ttl, jobject destObj)
-{
-	jclass					cls = (*pEnv)->GetObjectClass( pEnv, pThis);
-	jfieldID				contextField = (*pEnv)->GetFieldID( pEnv, cls, "fNativeContext", "I");
-	jclass					destCls = (*pEnv)->GetObjectClass( pEnv, destObj);
-	jfieldID				recField = (*pEnv)->GetFieldID( pEnv, destCls, "fRecord", "I");
-	OpContext				*pContext = NULL;
-	DNSServiceErrorType		err = kDNSServiceErr_NoError;
-	jbyte					*pBytes;
-	jsize					numBytes;
-	DNSRecordRef			recRef;
-	
-	if ( contextField != 0)
-		pContext = (OpContext*) (*pEnv)->GetIntField( pEnv, pThis, contextField);
-	if ( pContext == NULL || pContext->ServiceRef == NULL)
-		return kDNSServiceErr_BadParam;
-	
-	pBytes = (*pEnv)->GetByteArrayElements( pEnv, rData, NULL);
-	numBytes = (*pEnv)->GetArrayLength( pEnv, rData);
-	
-	err = DNSServiceAddRecord( pContext->ServiceRef, &recRef, flags, rrType, numBytes, pBytes, ttl);
-	if ( err == kDNSServiceErr_NoError)
-	{
-		(*pEnv)->SetIntField( pEnv, destObj, recField, (jint) recRef);
-	}
-	
-	if ( pBytes != NULL)
-		(*pEnv)->ReleaseByteArrayElements( pEnv, rData, pBytes, 0);
-	
-	return err;
-}
+
 
 JNIEXPORT jint JNICALL Java_com_apple_dnssd_AppleDNSRecord_Update( JNIEnv *pEnv, jobject pThis,
 																  jint flags, jbyteArray rData, jint ttl)
@@ -1098,6 +1107,7 @@ int main() {
 	AS3_Val processResultsMethod = AS3_Function(NULL, ProcessResults);
 	AS3_Val createBrowserMethod = AS3_Function(NULL, CreateBrowser);
 	AS3_Val beginRegisterMethod = AS3_Function(NULL, BeginRegister); 
+	AS3_Val addRecordMethod = AS3_Function(NULL, AddRecord);
 	// construct an object that holds references to the functions
 	/*AS3_Val result = AS3_Object( "hasAutoCallbacks: AS3ValType,InitLibrary: AS3ValType,HaltOperation:AS3ValType,BlockForData:AS3ValType,ProcessResults:AS3ValType,CreateBrowser:AS3ValType ", 
 								hasAutoCallbacksField,
@@ -1114,6 +1124,7 @@ int main() {
 	AS3_SetS( result,"ProcessResults",processResultsMethod);
 	AS3_SetS( result,"CreateBrowser",createBrowserMethod);
 	AS3_SetS( result,"BeginRegister",beginRegisterMethod);
+	AS3_SetS( result,"AddRecord",addRecordMethod);
 	
 	// Release
 	AS3_Release( initMethod );
@@ -1123,6 +1134,7 @@ int main() {
 	AS3_Release( processResultsMethod );
 	AS3_Release( createBrowserMethod );
 	AS3_Release( beginRegisterMethod );
+	AS3_Release( addRecordMethod );
 	
 	// notify that we initialized -- THIS DOES NOT RETURN!
 	AS3_LibInit( result );
