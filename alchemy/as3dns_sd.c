@@ -534,8 +534,8 @@ static AS3_Val BeginRegister( void* data,AS3_Val args)
 //																		jint flags, jint rrType, jbyteArray rData, jint ttl, jobject destObj)
 static AS3_Val AddRecord( void* data,AS3_Val args)
 {
-	AS3_Val pThis,ifIndex,flags,rrType,rData,ttl,destObj;
-	AS3_ArrayValue( args, "AS3ValType,IntType,IntType,IntType,StrType,IntType,AS3ValType", pThis,ifIndex,flags,rrType,rData,ttl,destObj);
+	AS3_Val pThis,flags,rrType,rData,ttl,destObj;
+	AS3_ArrayValue( args, "AS3ValType,IntType,IntType,StrType,IntType,AS3ValType", pThis,flags,rrType,rData,ttl,destObj);
 	
 	AS3_Val contextField = AS3_GetS(pThis,"fNativeContext");
 	OpContext	*pContext;
@@ -572,8 +572,52 @@ static AS3_Val AddRecord( void* data,AS3_Val args)
 	return AS3_Int(abs(err));
 }
 
+
+//JNIEXPORT jint JNICALL Java_com_apple_dnssd_AppleDNSRecord_Update( JNIEnv *pEnv, jobject pThis,
+//																  jint flags, jbyteArray rData, jint ttl)
+static AS3_Val AddRecord( void* data,AS3_Val args)
+{
+	AS3_Val pThis,flags,rData,ttl;
+	AS3_ArrayValue( args, "AS3ValType,IntType,StrType,IntType", pThis,flags,rData,ttl);
+	
+	AS3_Val ownerField = AS3_GetS(pThis,"fOwner");
+	AS3_Val recField = AS3_GetS(pThis,"fRecord");
+    
+
+	OpContext				*pContext = NULL;
+	
+    DNSServiceErrorType		err = kDNSServiceErr_NoError;
+	//jbyte					*pBytes;
+	uint16_t					numBytes;
+	DNSRecordRef			recRef = NULL;
+	
+	if ( ownerField != NULL)
+	{
+		AS3_Val		ownerObj = (*pEnv)->GetObjectField( pEnv, pThis, ownerField);
+		jclass		ownerClass = (*pEnv)->GetObjectClass( pEnv, ownerObj);
+		jfieldID	contextField = (*pEnv)->GetFieldID( pEnv, ownerClass, "fNativeContext", "I");
+		if ( contextField != 0)
+			pContext = (OpContext*) (*pEnv)->GetIntField( pEnv, ownerObj, contextField);
+	}
+	if ( recField != 0)
+		recRef = (DNSRecordRef) (*pEnv)->GetIntField( pEnv, pThis, recField);
+	if ( pContext == NULL || pContext->ServiceRef == NULL)
+		return kDNSServiceErr_BadParam;
+	
+	pBytes = (*pEnv)->GetByteArrayElements( pEnv, rData, NULL);
+	numBytes = (*pEnv)->GetArrayLength( pEnv, rData);
+	
+	err = DNSServiceUpdateRecord( pContext->ServiceRef, recRef, flags, numBytes, pBytes, ttl);
+	
+	if ( pBytes != NULL)
+		(*pEnv)->ReleaseByteArrayElements( pEnv, rData, pBytes, 0);
+	
+	return err;
+}
+
+
 /* TODO:
- * Methods of the original to yet implement (or discard)
+ * Methods of the original yet to implement (or discard)
  *
  *
  *
