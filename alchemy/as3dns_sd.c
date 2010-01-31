@@ -113,9 +113,9 @@ static AS3_Val InitLibrary( void* data,AS3_Val args)
     AS3_ArrayValue( args, "IntType", &callerVersion );
 
 	if ( callerVersion != kInterfaceVersion)
-		return AS3_Int(kDNSServiceErr_Incompatible);
+		return AS3_Int(abs(kDNSServiceErr_Incompatible));
 
-	return AS3_Int(kDNSServiceErr_NoError);
+	return AS3_Int(abs(kDNSServiceErr_NoError));
 }
 
 static OpContext	*NewContext(AS3_Val owner,const char *callbackName, const char *callbackSig)
@@ -252,7 +252,7 @@ static AS3_Val ProcessResults( void* data,AS3_Val args)
 			// to loop here reading more results from the file descriptor is unsafe.
 		}
 	}
-	return AS3_Int(err);
+	return AS3_Int(abs(err));
 #endif // AUTO_CALLBACKS
 }
 
@@ -303,7 +303,7 @@ static AS3_Val CreateBrowser( void* data,AS3_Val args)
 	OpContext	*pContext = (OpContext*) AS3_PtrValue(contextField);
 	DNSServiceErrorType		err = kDNSServiceErr_NoError;
 	
-	if ( pContext != 0)
+	if ( contextField != NULL)
 		pContext = NewContext( pThis, "serviceFound",
 							  "(Lcom/apple/dnssd/DNSSDService;IILjava/lang/String;Ljava/lang/String;Ljava/lang/String;)V");
 	else
@@ -327,7 +327,7 @@ static AS3_Val CreateBrowser( void* data,AS3_Val args)
 	else
 		err = kDNSServiceErr_NoMemory;
 	
-	return AS3_Int(err);
+	return AS3_Int(abs(err));
 }
 
 
@@ -396,7 +396,7 @@ static AS3_Val CreateResolver( void* data,AS3_Val args)
 	OpContext	*pContext = (OpContext*) AS3_PtrValue(contextField);
 	DNSServiceErrorType		err = kDNSServiceErr_NoError;
 	
-	if ( contextField != 0)
+	if ( contextField != NULL)
 		pContext = NewContext( pThis, "serviceResolved",
 							  "(Lcom/apple/dnssd/DNSSDService;IILjava/lang/String;Ljava/lang/String;ILcom/apple/dnssd/TXTRecord;)V");
 	else
@@ -404,9 +404,9 @@ static AS3_Val CreateResolver( void* data,AS3_Val args)
 	
 	if ( pContext != NULL)
 	{
-		const char	*servStr = AS3_StrValue(serviceName);
-		const char	*regStr = AS3_StrValue(regType);
-		const char	*domainStr = AS3_StrValue(domain);
+		char	*servStr = AS3_StringValue(serviceName);
+		char	*regStr = AS3_StringValue(regType);
+		char	*domainStr = AS3_StringValue(domain);
 		
 		err = DNSServiceResolve( &pContext->ServiceRef, AS3_IntValue(flags), AS3_IntValue(ifIndex),
 								servStr, regStr, domainStr, ServiceResolveReply, pContext);
@@ -423,8 +423,113 @@ static AS3_Val CreateResolver( void* data,AS3_Val args)
 	else
 		err = kDNSServiceErr_NoMemory;
 	
-	return AS3_Int(err);
+	return AS3_Int(abs(err));
 }
+
+static void DNSSD_API	ServiceRegisterReply( DNSServiceRef sdRef _UNUSED, DNSServiceFlags flags,
+											 DNSServiceErrorType errorCode, const char *serviceName,
+											 const char *regType, const char *domain, void *context)
+{
+	OpContext		*pContext = (OpContext*) context;
+	
+	//SetupCallbackState( &pContext->Env);
+	
+	if ( pContext->ClientObj != NULL && pContext->Callback != NULL)
+	{
+		if ( errorCode == kDNSServiceErr_NoError)
+		{
+            AS3_Val _flags = AS3_Int(flags);
+            AS3_Val _serviceName = AS3_String(serviceName);
+            AS3_Val _regtype = AS3_String(regType);
+            AS3_Val _domain = AS3_String(domain);
+            
+            AS3_Val params = AS3_Array("AS3ValType,IntType ,IntType ,StrType ,StrType ,StrType ",pContext->as3_Obj, _flags,_serviceName,_regtype,_domain);
+            AS3_Call(pContext->Callback,
+                       pContext->ClientObj,
+                       params);
+             
+            
+            
+            AS3_Release(_domain);
+            AS3_Release(_regtype);
+            AS3_Release(_serviceName);
+            AS3_Release(_flags);
+            AS3_Release(params);
+		}
+		else
+			ReportError(pContext->ClientObj, pContext->as3_Obj, errorCode);
+	}
+	//TeardownCallbackState();
+}
+
+
+//JNIEXPORT jint JNICALL Java_com_apple_dnssd_AppleRegistration_BeginRegister( JNIEnv *pEnv, jobject pThis,
+//																			jint ifIndex, jint flags, jstring serviceName, jstring regType,
+//																			jstring domain, jstring host, jint port, jbyteArray txtRecord)
+static AS3_Val BeginRegister( void* data,AS3_Val args)
+{
+	
+    AS3_Val pThis,ifIndex,flags,serviceName,regType,domain,host,port,txtRecord;
+	AS3_ArrayValue( args, "AS3ValType,IntType,IntType,StrType,StrType,StrType,StrType,IntType,StrType", pThis,ifIndex,flags,serviceName,regType,domain,host,port,txtRecord );
+	
+	AS3_Val contextField = AS3_GetS(pThis,"fNativeContext");
+	OpContext	*pContext = (OpContext*) AS3_PtrValue(contextField);
+    
+    
+	DNSServiceErrorType		err = kDNSServiceErr_NoError;
+	
+	//syslog(LOG_ERR, "BR: contextField %d", contextField);
+	
+	if ( contextField != NULL)
+		pContext = NewContext( pThis, "serviceRegistered",
+							  "(Lcom/apple/dnssd/DNSSDRegistration;ILjava/lang/String;Ljava/lang/String;Ljava/lang/String;)V");
+	else
+		err = kDNSServiceErr_BadParam;
+	
+	if ( pContext != NULL)
+	{
+		char	*servStr = AS3_StringValue(serviceName);
+		char	*regStr = AS3_StringValue(regType);
+		char	*domainStr = AS3_StringValue(domain);
+		char	*hostStr = AS3_StringValue(host);
+        char	*txtRecordStr = AS3_StringValue(txtRecord);
+		
+		//syslog(LOG_ERR, "BR: regStr %s", regStr);
+		
+		// Since Java ints are defined to be big-endian, we de-canonicalize 'port' from a 
+		// big-endian number into a 16-bit pattern here.
+		//uint16_t	portBits = port;
+		//portBits = ( ((unsigned char*) &portBits)[0] << 8) | ((unsigned char*) &portBits)[1];
+		
+		//pBytes = txtRecord ? (*pEnv)->GetByteArrayElements( pEnv, txtRecord, NULL) : NULL;
+		uint16_t numBytes = txtRecord ? sizeof(txtRecordStr)/sizeof(char) : 0;
+		
+		err = DNSServiceRegister( &pContext->ServiceRef, AS3_IntValue(flags), AS3_IntValue(ifIndex), servStr, regStr,  
+								 domainStr, hostStr, AS3_IntValue(port),
+								 numBytes, txtRecordStr, ServiceRegisterReply, pContext);
+		if ( err == kDNSServiceErr_NoError)
+		{
+			AS3_Val context=AS3_Ptr(pContext);
+            AS3_Set(contextField, pThis,  context);
+            AS3_Release(context);
+		}
+		
+		if ( txtRecordStr != NULL)
+			free(txtRecordStr);
+		
+		free(servStr);
+		free(regStr);
+		free(domainStr);
+		free(hostStr);
+        
+	}
+	else
+		err = kDNSServiceErr_NoMemory;
+	
+	return AS3_Int(abs(err));
+}
+
+
 
 
 /* TODO:
@@ -463,126 +568,7 @@ static void	TeardownCallbackState( void )
 
 
 
-JNIEXPORT jint JNICALL Java_com_apple_dnssd_AppleResolver_CreateResolver( JNIEnv *pEnv, jobject pThis,
-																		 jint flags, jint ifIndex, jstring serviceName, jstring regType, jstring domain)
-{
-	jclass					cls = (*pEnv)->GetObjectClass( pEnv, pThis);
-	jfieldID				contextField = (*pEnv)->GetFieldID( pEnv, cls, "fNativeContext", "I");
-	OpContext				*pContext = NULL;
-	DNSServiceErrorType		err = kDNSServiceErr_NoError;
-	
-	if ( contextField != 0)
-		pContext = NewContext( pEnv, pThis, "serviceResolved",
-							  "(Lcom/apple/dnssd/DNSSDService;IILjava/lang/String;Ljava/lang/String;ILcom/apple/dnssd/TXTRecord;)V");
-	else
-		err = kDNSServiceErr_BadParam;
-	
-	if ( pContext != NULL)
-	{
-		const char	*servStr = SafeGetUTFChars( pEnv, serviceName);
-		const char	*regStr = SafeGetUTFChars( pEnv, regType);
-		const char	*domainStr = SafeGetUTFChars( pEnv, domain);
-		
-		err = DNSServiceResolve( &pContext->ServiceRef, flags, ifIndex,
-								servStr, regStr, domainStr, ServiceResolveReply, pContext);
-		if ( err == kDNSServiceErr_NoError)
-		{
-			(*pEnv)->SetIntField( pEnv, pThis, contextField, (jint) pContext);
-		}
-		
-		SafeReleaseUTFChars( pEnv, serviceName, servStr);
-		SafeReleaseUTFChars( pEnv, regType, regStr);
-		SafeReleaseUTFChars( pEnv, domain, domainStr);
-	}
-	else
-		err = kDNSServiceErr_NoMemory;
-	
-	return err;
-}
 
-
-static void DNSSD_API	ServiceRegisterReply( DNSServiceRef sdRef _UNUSED, DNSServiceFlags flags,
-											 DNSServiceErrorType errorCode, const char *serviceName,
-											 const char *regType, const char *domain, void *context)
-{
-	OpContext		*pContext = (OpContext*) context;
-	
-	SetupCallbackState( &pContext->Env);
-	
-	if ( pContext->ClientObj != NULL && pContext->Callback != NULL)
-	{
-		if ( errorCode == kDNSServiceErr_NoError)
-		{
-			(*pContext->Env)->CallVoidMethod( pContext->Env, pContext->ClientObj, pContext->Callback,
-											 pContext->JavaObj, flags,
-											 (*pContext->Env)->NewStringUTF( pContext->Env, serviceName),
-											 (*pContext->Env)->NewStringUTF( pContext->Env, regType),
-											 (*pContext->Env)->NewStringUTF( pContext->Env, domain));
-		}
-		else
-			ReportError( pContext->Env, pContext->ClientObj, pContext->JavaObj, errorCode);
-	}
-	TeardownCallbackState();
-}
-
-JNIEXPORT jint JNICALL Java_com_apple_dnssd_AppleRegistration_BeginRegister( JNIEnv *pEnv, jobject pThis,
-																			jint ifIndex, jint flags, jstring serviceName, jstring regType,
-																			jstring domain, jstring host, jint port, jbyteArray txtRecord)
-{
-	//syslog(LOG_ERR, "BR");
-	jclass					cls = (*pEnv)->GetObjectClass( pEnv, pThis);
-	jfieldID				contextField = (*pEnv)->GetFieldID( pEnv, cls, "fNativeContext", "I");
-	OpContext				*pContext = NULL;
-	DNSServiceErrorType		err = kDNSServiceErr_NoError;
-	jbyte					*pBytes;
-	jsize					numBytes;
-	
-	//syslog(LOG_ERR, "BR: contextField %d", contextField);
-	
-	if ( contextField != 0)
-		pContext = NewContext( pEnv, pThis, "serviceRegistered",
-							  "(Lcom/apple/dnssd/DNSSDRegistration;ILjava/lang/String;Ljava/lang/String;Ljava/lang/String;)V");
-	else
-		err = kDNSServiceErr_BadParam;
-	
-	if ( pContext != NULL)
-	{
-		const char	*servStr = SafeGetUTFChars( pEnv, serviceName);
-		const char	*regStr = SafeGetUTFChars( pEnv, regType);
-		const char	*domainStr = SafeGetUTFChars( pEnv, domain);
-		const char	*hostStr = SafeGetUTFChars( pEnv, host);
-		
-		//syslog(LOG_ERR, "BR: regStr %s", regStr);
-		
-		// Since Java ints are defined to be big-endian, we de-canonicalize 'port' from a 
-		// big-endian number into a 16-bit pattern here.
-		uint16_t	portBits = port;
-		portBits = ( ((unsigned char*) &portBits)[0] << 8) | ((unsigned char*) &portBits)[1];
-		
-		pBytes = txtRecord ? (*pEnv)->GetByteArrayElements( pEnv, txtRecord, NULL) : NULL;
-		numBytes = txtRecord ? (*pEnv)->GetArrayLength( pEnv, txtRecord) : 0;
-		
-		err = DNSServiceRegister( &pContext->ServiceRef, flags, ifIndex, servStr, regStr,  
-								 domainStr, hostStr, portBits,
-								 numBytes, pBytes, ServiceRegisterReply, pContext);
-		if ( err == kDNSServiceErr_NoError)
-		{
-			(*pEnv)->SetIntField( pEnv, pThis, contextField, (jint) pContext);
-		}
-		
-		if ( pBytes != NULL)
-			(*pEnv)->ReleaseByteArrayElements( pEnv, txtRecord, pBytes, 0);
-		
-		SafeReleaseUTFChars( pEnv, serviceName, servStr);
-		SafeReleaseUTFChars( pEnv, regType, regStr);
-		SafeReleaseUTFChars( pEnv, domain, domainStr);
-		SafeReleaseUTFChars( pEnv, host, hostStr);
-	}
-	else
-		err = kDNSServiceErr_NoMemory;
-	
-	return err;
-}
 
 JNIEXPORT jint JNICALL Java_com_apple_dnssd_AppleRegistration_AddRecord( JNIEnv *pEnv, jobject pThis,
 																		jint flags, jint rrType, jbyteArray rData, jint ttl, jobject destObj)
@@ -1111,7 +1097,7 @@ int main() {
 	AS3_Val blockForDataMethod = AS3_Function(NULL, BlockForData);
 	AS3_Val processResultsMethod = AS3_Function(NULL, ProcessResults);
 	AS3_Val createBrowserMethod = AS3_Function(NULL, CreateBrowser);
-
+	AS3_Val beginRegisterMethod = AS3_Function(NULL, BeginRegister); 
 	// construct an object that holds references to the functions
 	/*AS3_Val result = AS3_Object( "hasAutoCallbacks: AS3ValType,InitLibrary: AS3ValType,HaltOperation:AS3ValType,BlockForData:AS3ValType,ProcessResults:AS3ValType,CreateBrowser:AS3ValType ", 
 								hasAutoCallbacksField,
@@ -1127,7 +1113,7 @@ int main() {
 	AS3_SetS( result,"BlockForData",blockForDataMethod);
 	AS3_SetS( result,"ProcessResults",processResultsMethod);
 	AS3_SetS( result,"CreateBrowser",createBrowserMethod);
-
+	AS3_SetS( result,"BeginRegister",beginRegisterMethod);
 	
 	// Release
 	AS3_Release( initMethod );
@@ -1136,7 +1122,8 @@ int main() {
 	AS3_Release( blockForDataMethod );
 	AS3_Release( processResultsMethod );
 	AS3_Release( createBrowserMethod );
-
+	AS3_Release( beginRegisterMethod );
+	
 	// notify that we initialized -- THIS DOES NOT RETURN!
 	AS3_LibInit( result );
 	
