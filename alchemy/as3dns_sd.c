@@ -1150,6 +1150,8 @@ int main() {
 	AS3_Val updateMethod = AS3_Function(NULL, Update); 
 	AS3_Val removeMethod = AS3_Function(NULL, Remove);
 	AS3_Val createConnectionMethod = AS3_Function(NULL, CreateConnection);
+	AS3_Val createResolverMethod = AS3_Function(NULL, CreateResolver);
+	AS3_Val registerRecordMethod = AS3_Function(NULL, RegisterRecord);
 	// construct an object that holds references to the functions
 	/*AS3_Val result = AS3_Object( "hasAutoCallbacks: AS3ValType,InitLibrary: AS3ValType,HaltOperation:AS3ValType,BlockForData:AS3ValType,ProcessResults:AS3ValType,CreateBrowser:AS3ValType ", 
 								hasAutoCallbacksField,
@@ -1170,6 +1172,8 @@ int main() {
 	AS3_SetS( result,"Update",updateMethod);
 	AS3_SetS( result,"Remove",removeMethod);
 	AS3_SetS( result,"CreateConnection",createConnectionMethod);
+	AS3_SetS( result,"CreateResolver",createResolverMethod);
+	AS3_SetS( result,"RegisterRecord",registerRecordMethod);
 	
 	// Release
 	AS3_Release( initMethod );
@@ -1183,6 +1187,8 @@ int main() {
 	AS3_Release( updateMethod );
 	AS3_Release( removeMethod );
 	AS3_Release( createConnectionMethod );
+	AS3_Release( createResolverMethod );
+	AS3_Release( registerRecordMethod );
 	
 	// notify that we initialized -- THIS DOES NOT RETURN!
 	AS3_LibInit( result );
