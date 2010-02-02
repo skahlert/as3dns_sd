@@ -616,6 +616,39 @@ static AS3_Val Update( void* data,AS3_Val args)
 }
 
 
+
+//JNIEXPORT jint JNICALL Java_com_apple_dnssd_AppleDNSRecord_Remove( JNIEnv *pEnv, jobject pThis)
+static AS3_Val Remove( void* data,AS3_Val args)
+{
+	AS3_Val pThis;
+	AS3_ArrayValue( args, "AS3ValType", pThis);
+	
+	jclass					cls = (*pEnv)->GetObjectClass( pEnv, pThis);
+	AS3_Val ownerField = AS3_GetS(pThis,"fOwner");
+	AS3_Val recField = AS3_GetS(pThis,"fRecord");
+	OpContext				*pContext = NULL;
+	DNSServiceErrorType		err = kDNSServiceErr_NoError;
+	DNSRecordRef			recRef = NULL;
+	
+	if ( ownerField != NULL)
+	{
+		AS3_Val	contextField = AS3_GetS(ownerField,"fNativeContext");
+		if ( contextField != NULL)
+			pContext = (OpContext*) AS3_PtrValue(contextField);
+	}
+	if ( recField != NULL)
+		recRef = (DNSRecordRef) AS3_PtrValue(recField);
+	if ( pContext == NULL || pContext->ServiceRef == NULL)
+		return kDNSServiceErr_BadParam;
+	
+	err = DNSServiceRemoveRecord( pContext->ServiceRef, recRef, 0);
+	
+	return AS3_Int(abs(err));
+}
+
+
+
+
 /* TODO:
  * Methods of the original yet to implement (or discard)
  *
@@ -652,72 +685,6 @@ static void	TeardownCallbackState( void )
 
 
 
-
-
-
-
-JNIEXPORT jint JNICALL Java_com_apple_dnssd_AppleDNSRecord_Update( JNIEnv *pEnv, jobject pThis,
-																  jint flags, jbyteArray rData, jint ttl)
-{
-	jclass					cls = (*pEnv)->GetObjectClass( pEnv, pThis);
-	jfieldID				ownerField = (*pEnv)->GetFieldID( pEnv, cls, "fOwner", "Lcom/apple/dnssd/AppleService;");
-	jfieldID				recField = (*pEnv)->GetFieldID( pEnv, cls, "fRecord", "I");
-	OpContext				*pContext = NULL;
-	DNSServiceErrorType		err = kDNSServiceErr_NoError;
-	jbyte					*pBytes;
-	jsize					numBytes;
-	DNSRecordRef			recRef = NULL;
-	
-	if ( ownerField != 0)
-	{
-		jobject		ownerObj = (*pEnv)->GetObjectField( pEnv, pThis, ownerField);
-		jclass		ownerClass = (*pEnv)->GetObjectClass( pEnv, ownerObj);
-		jfieldID	contextField = (*pEnv)->GetFieldID( pEnv, ownerClass, "fNativeContext", "I");
-		if ( contextField != 0)
-			pContext = (OpContext*) (*pEnv)->GetIntField( pEnv, ownerObj, contextField);
-	}
-	if ( recField != 0)
-		recRef = (DNSRecordRef) (*pEnv)->GetIntField( pEnv, pThis, recField);
-	if ( pContext == NULL || pContext->ServiceRef == NULL)
-		return kDNSServiceErr_BadParam;
-	
-	pBytes = (*pEnv)->GetByteArrayElements( pEnv, rData, NULL);
-	numBytes = (*pEnv)->GetArrayLength( pEnv, rData);
-	
-	err = DNSServiceUpdateRecord( pContext->ServiceRef, recRef, flags, numBytes, pBytes, ttl);
-	
-	if ( pBytes != NULL)
-		(*pEnv)->ReleaseByteArrayElements( pEnv, rData, pBytes, 0);
-	
-	return err;
-}
-
-JNIEXPORT jint JNICALL Java_com_apple_dnssd_AppleDNSRecord_Remove( JNIEnv *pEnv, jobject pThis)
-{
-	jclass					cls = (*pEnv)->GetObjectClass( pEnv, pThis);
-	jfieldID				ownerField = (*pEnv)->GetFieldID( pEnv, cls, "fOwner", "Lcom/apple/dnssd/AppleService;");
-	jfieldID				recField = (*pEnv)->GetFieldID( pEnv, cls, "fRecord", "I");
-	OpContext				*pContext = NULL;
-	DNSServiceErrorType		err = kDNSServiceErr_NoError;
-	DNSRecordRef			recRef = NULL;
-	
-	if ( ownerField != 0)
-	{
-		jobject		ownerObj = (*pEnv)->GetObjectField( pEnv, pThis, ownerField);
-		jclass		ownerClass = (*pEnv)->GetObjectClass( pEnv, ownerObj);
-		jfieldID	contextField = (*pEnv)->GetFieldID( pEnv, ownerClass, "fNativeContext", "I");
-		if ( contextField != 0)
-			pContext = (OpContext*) (*pEnv)->GetIntField( pEnv, ownerObj, contextField);
-	}
-	if ( recField != 0)
-		recRef = (DNSRecordRef) (*pEnv)->GetIntField( pEnv, pThis, recField);
-	if ( pContext == NULL || pContext->ServiceRef == NULL)
-		return kDNSServiceErr_BadParam;
-	
-	err = DNSServiceRemoveRecord( pContext->ServiceRef, recRef, 0);
-	
-	return err;
-}
 
 
 JNIEXPORT jint JNICALL Java_com_apple_dnssd_AppleRecordRegistrar_CreateConnection( JNIEnv *pEnv, jobject pThis)
