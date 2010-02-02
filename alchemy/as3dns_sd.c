@@ -647,6 +647,45 @@ static AS3_Val Remove( void* data,AS3_Val args)
 }
 
 
+//JNIEXPORT jint JNICALL Java_com_apple_dnssd_AppleRecordRegistrar_CreateConnection( JNIEnv *pEnv, jobject pThis)
+static AS3_Val CreateConnection( void* data,AS3_Val args)
+{
+	AS3_Val pThis;
+	AS3_ArrayValue( args, "AS3ValType", pThis);
+	
+	AS3_Val contextField = AS3_GetS(pThis,"fNativeContext");
+	
+	OpContext				*pContext = NULL;
+	DNSServiceErrorType		err = kDNSServiceErr_NoError;
+	
+	if ( contextField != NULL)
+		pContext = NewContext(pThis, "recordRegistered", "(Lcom/apple/dnssd/DNSRecord;I)V");
+	else
+		err = kDNSServiceErr_BadParam;
+	
+	if ( pContext != NULL)
+	{
+		err = DNSServiceCreateConnection( &pContext->ServiceRef);
+		if ( err == kDNSServiceErr_NoError)
+		{
+			AS3_Val _pContext=AS3_Ptr(pContext);
+			AS3_Set(contextField,pThis,_pContext);
+			AS3_Release(_pContext);
+		}
+	}
+	else
+		err = kDNSServiceErr_NoMemory;
+	
+	return AS3_Int(abs(err));
+}
+
+
+struct RecordRegistrationRef
+{
+	OpContext		*Context;
+	AS3_Val			RecordObj;
+};
+typedef struct RecordRegistrationRef	RecordRegistrationRef;
 
 
 /* TODO:
@@ -686,39 +725,6 @@ static void	TeardownCallbackState( void )
 
 
 
-
-JNIEXPORT jint JNICALL Java_com_apple_dnssd_AppleRecordRegistrar_CreateConnection( JNIEnv *pEnv, jobject pThis)
-{
-	jclass					cls = (*pEnv)->GetObjectClass( pEnv, pThis);
-	jfieldID				contextField = (*pEnv)->GetFieldID( pEnv, cls, "fNativeContext", "I");
-	OpContext				*pContext = NULL;
-	DNSServiceErrorType		err = kDNSServiceErr_NoError;
-	
-	if ( contextField != 0)
-		pContext = NewContext( pEnv, pThis, "recordRegistered", "(Lcom/apple/dnssd/DNSRecord;I)V");
-	else
-		err = kDNSServiceErr_BadParam;
-	
-	if ( pContext != NULL)
-	{
-		err = DNSServiceCreateConnection( &pContext->ServiceRef);
-		if ( err == kDNSServiceErr_NoError)
-		{
-			(*pEnv)->SetIntField( pEnv, pThis, contextField, (jint) pContext);
-		}
-	}
-	else
-		err = kDNSServiceErr_NoMemory;
-	
-	return err;
-}
-
-struct RecordRegistrationRef
-{
-	OpContext		*Context;
-	jobject			RecordObj;
-};
-typedef struct RecordRegistrationRef	RecordRegistrationRef;
 
 static void DNSSD_API	RegisterRecordReply( DNSServiceRef sdRef _UNUSED, 
 											DNSRecordRef recordRef _UNUSED, DNSServiceFlags flags, 
@@ -1121,6 +1127,7 @@ int main() {
 	AS3_Val addRecordMethod = AS3_Function(NULL, AddRecord);
 	AS3_Val updateMethod = AS3_Function(NULL, Update); 
 	AS3_Val removeMethod = AS3_Function(NULL, Remove);
+	AS3_Val createConnectionMethod = AS3_Function(NULL, CreateConnection);
 	// construct an object that holds references to the functions
 	/*AS3_Val result = AS3_Object( "hasAutoCallbacks: AS3ValType,InitLibrary: AS3ValType,HaltOperation:AS3ValType,BlockForData:AS3ValType,ProcessResults:AS3ValType,CreateBrowser:AS3ValType ", 
 								hasAutoCallbacksField,
@@ -1140,6 +1147,7 @@ int main() {
 	AS3_SetS( result,"AddRecord",addRecordMethod);
 	AS3_SetS( result,"Update",updateMethod);
 	AS3_SetS( result,"Remove",removeMethod);
+	AS3_SetS( result,"CreateConnection",createConnectionMethod);
 	
 	// Release
 	AS3_Release( initMethod );
@@ -1152,6 +1160,7 @@ int main() {
 	AS3_Release( addRecordMethod );
 	AS3_Release( updateMethod );
 	AS3_Release( removeMethod );
+	AS3_Release( createConnectionMethod );
 	
 	// notify that we initialized -- THIS DOES NOT RETURN!
 	AS3_LibInit( result );
