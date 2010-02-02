@@ -575,7 +575,7 @@ static AS3_Val AddRecord( void* data,AS3_Val args)
 
 //JNIEXPORT jint JNICALL Java_com_apple_dnssd_AppleDNSRecord_Update( JNIEnv *pEnv, jobject pThis,
 //																  jint flags, jbyteArray rData, jint ttl)
-static AS3_Val AddRecord( void* data,AS3_Val args)
+static AS3_Val Update( void* data,AS3_Val args)
 {
 	AS3_Val pThis,flags,rData,ttl;
 	AS3_ArrayValue( args, "AS3ValType,IntType,StrType,IntType", pThis,flags,rData,ttl);
@@ -593,26 +593,26 @@ static AS3_Val AddRecord( void* data,AS3_Val args)
 	
 	if ( ownerField != NULL)
 	{
-		AS3_Val		ownerObj = (*pEnv)->GetObjectField( pEnv, pThis, ownerField);
-		jclass		ownerClass = (*pEnv)->GetObjectClass( pEnv, ownerObj);
-		jfieldID	contextField = (*pEnv)->GetFieldID( pEnv, ownerClass, "fNativeContext", "I");
-		if ( contextField != 0)
-			pContext = (OpContext*) (*pEnv)->GetIntField( pEnv, ownerObj, contextField);
+		//AS3_Val		ownerObj = (*pEnv)->GetObjectField( pEnv, pThis, ownerField);
+		//jclass		ownerClass = (*pEnv)->GetObjectClass( pEnv, ownerObj);
+		AS3_Val	contextField = AS3_GetS(ownerField,"fNativeContext");
+		if ( contextField != NULL)
+			pContext = (OpContext*) AS3_PtrValue(contextField);
 	}
-	if ( recField != 0)
-		recRef = (DNSRecordRef) (*pEnv)->GetIntField( pEnv, pThis, recField);
+	if ( recField != NULL)
+		recRef = (DNSRecordRef) AS3_PtrValue(recField);
 	if ( pContext == NULL || pContext->ServiceRef == NULL)
 		return kDNSServiceErr_BadParam;
 	
-	pBytes = (*pEnv)->GetByteArrayElements( pEnv, rData, NULL);
-	numBytes = (*pEnv)->GetArrayLength( pEnv, rData);
+	char * _rData = AS3_StringValue(rData);
+	numBytes = _rData ? sizeof(_rData)/sizeof(char) : 0;
 	
-	err = DNSServiceUpdateRecord( pContext->ServiceRef, recRef, flags, numBytes, pBytes, ttl);
+	err = DNSServiceUpdateRecord( pContext->ServiceRef, recRef, AS3_IntValue(flags), numBytes, _rData, AS3_IntValue(ttl));
 	
-	if ( pBytes != NULL)
-		(*pEnv)->ReleaseByteArrayElements( pEnv, rData, pBytes, 0);
+	if ( _rData != NULL)
+		free(_rData);
 	
-	return err;
+	return AS3_Int(abs(err));
 }
 
 
