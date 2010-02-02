@@ -692,6 +692,7 @@ typedef struct RecordRegistrationRef	RecordRegistrationRef;
 static void DNSSD_API	RegisterRecordReply( DNSServiceRef sdRef _UNUSED, 
 											DNSRecordRef recordRef _UNUSED, DNSServiceFlags flags, 
 											DNSServiceErrorType errorCode, void *context)
+
 {
 	RecordRegistrationRef	*regEnvelope = (RecordRegistrationRef*) context;
 	OpContext		*pContext = regEnvelope->Context;
@@ -722,6 +723,71 @@ static void DNSSD_API	RegisterRecordReply( DNSServiceRef sdRef _UNUSED,
 	
 	//TeardownCallbackState();
 }
+
+
+
+
+//JNIEXPORT jint JNICALL Java_com_apple_dnssd_AppleRecordRegistrar_RegisterRecord( JNIEnv *pEnv, jobject pThis, 
+//																				jint flags, jint ifIndex, jstring fullname, jint rrType, jint rrClass, 
+//																				jbyteArray rData, jint ttl, jobject destObj)
+static AS3_Val RegisterRecord( void* data,AS3_Val args)
+{
+	
+	AS3_Val pThis,flags,ifIndex,fullname,rrType,rrClass,rData,ttl, destObj;
+	AS3_ArrayValue( args, "AS3ValType,IntType,IntType,StringType,IntType,IntType,StringType,IntType,IntType,AS3ValType", pThis,flags,ifIndex,fullname,rrType,rrClass,rData,ttl, destObj);
+	AS3_Val contextField = AS3_GetS(pThis,"fNativeContext");
+	AS3_Val recField = AS3_GetS(destObj,"fRecord");
+	OpContext				*pContext = NULL;
+	
+	
+	char				*nameStr = AS3_StringValue(fullname);
+
+	DNSServiceErrorType		err = kDNSServiceErr_NoError;
+	//jbyte					*pBytes;
+	uint16_t				numBytes;
+	DNSRecordRef			recRef;
+	RecordRegistrationRef	*regEnvelope;
+	
+	if ( contextField != NULL)
+		pContext = (OpContext*) AS3_PtrValue(contextField);
+	if ( pContext == NULL || pContext->ServiceRef == NULL || nameStr == NULL)
+		return AS3_Int(abs(kDNSServiceErr_BadParam));
+	
+	regEnvelope = calloc( 1, sizeof *regEnvelope);
+	if ( regEnvelope == NULL)
+		return AS3_Int(abs(kDNSServiceErr_NoMemory));
+	regEnvelope->Context = pContext;
+	regEnvelope->RecordObj = destObj;
+	
+	char * _rData = AS3_StringValue(rData);
+	numBytes = _rData ? sizeof(_rData)/sizeof(char) : 0;
+
+	
+	err = DNSServiceRegisterRecord( pContext->ServiceRef, &recRef, AS3_IntValue(flags), AS3_IntValue(ifIndex), 
+								   nameStr, AS3_IntValue(rrType), AS3_IntValue(rrClass), numBytes, _rData, AS3_IntValue(ttl),
+								   RegisterRecordReply, regEnvelope);
+	
+	if ( err == kDNSServiceErr_NoError)
+	{
+		AS3_Val _recRef= AS3_Ptr(recRef);
+		AS3_Set(recField,destObj,_recRef);
+		AS3_Release(_recRef);
+	}
+	else
+	{
+		if ( regEnvelope->RecordObj != NULL)
+			AS3_Release(regEnvelope->RecordObj);
+		free( regEnvelope);
+	}
+	
+	if ( _rData != NULL)
+		free(_rData);
+	
+	free(nameStr);
+	
+	return AS3_Int(abs(err));
+}
+
 
 
 
@@ -760,60 +826,6 @@ static void	TeardownCallbackState( void )
 #endif	// AUTO_CALLBACKS
 
 
-
-
-JNIEXPORT jint JNICALL Java_com_apple_dnssd_AppleRecordRegistrar_RegisterRecord( JNIEnv *pEnv, jobject pThis, 
-																				jint flags, jint ifIndex, jstring fullname, jint rrType, jint rrClass, 
-																				jbyteArray rData, jint ttl, jobject destObj)
-{
-	jclass					cls = (*pEnv)->GetObjectClass( pEnv, pThis);
-	jfieldID				contextField = (*pEnv)->GetFieldID( pEnv, cls, "fNativeContext", "I");
-	jclass					destCls = (*pEnv)->GetObjectClass( pEnv, destObj);
-	jfieldID				recField = (*pEnv)->GetFieldID( pEnv, destCls, "fRecord", "I");
-	const char				*nameStr = SafeGetUTFChars( pEnv, fullname);
-	OpContext				*pContext = NULL;
-	DNSServiceErrorType		err = kDNSServiceErr_NoError;
-	jbyte					*pBytes;
-	jsize					numBytes;
-	DNSRecordRef			recRef;
-	RecordRegistrationRef	*regEnvelope;
-	
-	if ( contextField != 0)
-		pContext = (OpContext*) (*pEnv)->GetIntField( pEnv, pThis, contextField);
-	if ( pContext == NULL || pContext->ServiceRef == NULL || nameStr == NULL)
-		return kDNSServiceErr_BadParam;
-	
-	regEnvelope = calloc( 1, sizeof *regEnvelope);
-	if ( regEnvelope == NULL)
-		return kDNSServiceErr_NoMemory;
-	regEnvelope->Context = pContext;
-	regEnvelope->RecordObj = (*pEnv)->NewWeakGlobalRef( pEnv, destObj);	// must convert local ref to global to cache
-	
-	pBytes = (*pEnv)->GetByteArrayElements( pEnv, rData, NULL);
-	numBytes = (*pEnv)->GetArrayLength( pEnv, rData);
-	
-	err = DNSServiceRegisterRecord( pContext->ServiceRef, &recRef, flags, ifIndex, 
-								   nameStr, rrType, rrClass, numBytes, pBytes, ttl,
-								   RegisterRecordReply, regEnvelope);
-	
-	if ( err == kDNSServiceErr_NoError)
-	{
-		(*pEnv)->SetIntField( pEnv, destObj, recField, (jint) recRef);
-	}
-	else
-	{
-		if ( regEnvelope->RecordObj != NULL)
-			(*pEnv)->DeleteWeakGlobalRef( pEnv, regEnvelope->RecordObj);
-		free( regEnvelope);
-	}
-	
-	if ( pBytes != NULL)
-		(*pEnv)->ReleaseByteArrayElements( pEnv, rData, pBytes, 0);
-	
-	SafeReleaseUTFChars( pEnv, fullname, nameStr);
-	
-	return err;
-}
 
 
 static void DNSSD_API	ServiceQueryReply( DNSServiceRef sdRef _UNUSED, DNSServiceFlags flags, uint32_t interfaceIndex,
