@@ -788,7 +788,54 @@ static AS3_Val RegisterRecord( void* data,AS3_Val args)
 	return AS3_Int(abs(err));
 }
 
-
+static void DNSSD_API	ServiceQueryReply( DNSServiceRef sdRef _UNUSED, DNSServiceFlags flags, uint32_t interfaceIndex,
+										  DNSServiceErrorType errorCode, const char *serviceName,
+										  uint16_t rrtype, uint16_t rrclass, uint16_t rdlen,
+										  const void *rdata, uint32_t ttl, void *context)
+{
+	OpContext		*pContext = (OpContext*) context;
+	//char *			rDataArr;
+	AS3_Val			_rdata;
+	
+	//SetupCallbackState( &pContext->Env);
+	
+	if ( pContext->ClientObj != NULL && pContext->Callback != NULL)// &&	NULL != ( rDataArr = char[rdlen])))
+	{	
+		if ( errorCode == kDNSServiceErr_NoError)
+		{
+			
+			//TODO: Keine ahnung, ob das funktioniert  !!!!!!!!!!!!!!!
+			//memcpy( rDataArr, rdata, rdlen);
+			_rdata = AS3_String((char*)rdata);
+			//(*pContext->Env)->ReleaseByteArrayElements( pContext->Env, rDataObj, pBytes, JNI_COMMIT);
+			
+			AS3_Val _flags = AS3_Int(flags);
+            AS3_Val _interfaceIndex = AS3_Int(interfaceIndex);
+			AS3_Val _serviceName = AS3_String(serviceName);
+			AS3_Val _rrtype = AS3_Int(rrtype);
+			AS3_Val _rrclass = AS3_Int(rrclass);
+			AS3_Val _ttl = AS3_Int(ttl);
+			
+            
+            AS3_Val params = AS3_Array("AS3ValType,IntType,IntType,StringType,IntType,IntType,AS3ValType,IntType",pContext->as3_Obj, _flags,_interfaceIndex,_serviceName,_rrtype,_rrclass,_rdata,_ttl);
+            AS3_Call(pContext->Callback,
+					 pContext->ClientObj,
+					 params);
+			
+            AS3_Release(_flags);
+			AS3_Release(_interfaceIndex);
+			AS3_Release(_serviceName);
+			AS3_Release(_rrtype);
+			AS3_Release(_rrclass);
+			AS3_Release(_ttl);
+			AS3_Release(_rdata);
+	
+		}
+		else
+			ReportError(pContext->ClientObj, pContext->as3_Obj, errorCode);
+	}
+	//TeardownCallbackState();
+}
 
 
 /* TODO:
@@ -827,38 +874,6 @@ static void	TeardownCallbackState( void )
 
 
 
-
-static void DNSSD_API	ServiceQueryReply( DNSServiceRef sdRef _UNUSED, DNSServiceFlags flags, uint32_t interfaceIndex,
-										  DNSServiceErrorType errorCode, const char *serviceName,
-										  uint16_t rrtype, uint16_t rrclass, uint16_t rdlen,
-										  const void *rdata, uint32_t ttl, void *context)
-{
-	OpContext		*pContext = (OpContext*) context;
-	jbyteArray		rDataObj;
-	jbyte			*pBytes;
-	
-	SetupCallbackState( &pContext->Env);
-	
-	if ( pContext->ClientObj != NULL && pContext->Callback != NULL && 
-		NULL != ( rDataObj = (*pContext->Env)->NewByteArray( pContext->Env, rdlen)))
-	{	
-		if ( errorCode == kDNSServiceErr_NoError)
-		{
-			// Initialize rDataObj with contents of rdata
-			pBytes = (*pContext->Env)->GetByteArrayElements( pContext->Env, rDataObj, NULL);
-			memcpy( pBytes, rdata, rdlen);
-			(*pContext->Env)->ReleaseByteArrayElements( pContext->Env, rDataObj, pBytes, JNI_COMMIT);
-			
-			(*pContext->Env)->CallVoidMethod( pContext->Env, pContext->ClientObj, pContext->Callback,
-											 pContext->JavaObj, flags, interfaceIndex,
-											 (*pContext->Env)->NewStringUTF( pContext->Env, serviceName),
-											 rrtype, rrclass, rDataObj, ttl);
-		}
-		else
-			ReportError( pContext->Env, pContext->ClientObj, pContext->JavaObj, errorCode);
-	}
-	TeardownCallbackState();
-}
 
 JNIEXPORT jint JNICALL Java_com_apple_dnssd_AppleQuery_CreateQuery( JNIEnv *pEnv, jobject pThis,
 																   jint flags, jint ifIndex, jstring serviceName, jint rrtype, jint rrclass)
