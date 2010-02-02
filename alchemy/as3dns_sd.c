@@ -602,7 +602,7 @@ static AS3_Val Update( void* data,AS3_Val args)
 	if ( recField != NULL)
 		recRef = (DNSRecordRef) AS3_PtrValue(recField);
 	if ( pContext == NULL || pContext->ServiceRef == NULL)
-		return kDNSServiceErr_BadParam;
+		return AS3_Int(abs(kDNSServiceErr_BadParam));
 	
 	char * _rData = AS3_StringValue(rData);
 	numBytes = _rData ? sizeof(_rData)/sizeof(char) : 0;
@@ -623,7 +623,7 @@ static AS3_Val Remove( void* data,AS3_Val args)
 	AS3_Val pThis;
 	AS3_ArrayValue( args, "AS3ValType", pThis);
 	
-	jclass					cls = (*pEnv)->GetObjectClass( pEnv, pThis);
+	
 	AS3_Val ownerField = AS3_GetS(pThis,"fOwner");
 	AS3_Val recField = AS3_GetS(pThis,"fRecord");
 	OpContext				*pContext = NULL;
@@ -639,7 +639,7 @@ static AS3_Val Remove( void* data,AS3_Val args)
 	if ( recField != NULL)
 		recRef = (DNSRecordRef) AS3_PtrValue(recField);
 	if ( pContext == NULL || pContext->ServiceRef == NULL)
-		return kDNSServiceErr_BadParam;
+		return AS3_Int(abs(kDNSServiceErr_BadParam));
 	
 	err = DNSServiceRemoveRecord( pContext->ServiceRef, recRef, 0);
 	
@@ -1119,6 +1119,8 @@ int main() {
 	AS3_Val createBrowserMethod = AS3_Function(NULL, CreateBrowser);
 	AS3_Val beginRegisterMethod = AS3_Function(NULL, BeginRegister); 
 	AS3_Val addRecordMethod = AS3_Function(NULL, AddRecord);
+	AS3_Val updateMethod = AS3_Function(NULL, Update); 
+	AS3_Val removeMethod = AS3_Function(NULL, Remove);
 	// construct an object that holds references to the functions
 	/*AS3_Val result = AS3_Object( "hasAutoCallbacks: AS3ValType,InitLibrary: AS3ValType,HaltOperation:AS3ValType,BlockForData:AS3ValType,ProcessResults:AS3ValType,CreateBrowser:AS3ValType ", 
 								hasAutoCallbacksField,
@@ -1136,6 +1138,8 @@ int main() {
 	AS3_SetS( result,"CreateBrowser",createBrowserMethod);
 	AS3_SetS( result,"BeginRegister",beginRegisterMethod);
 	AS3_SetS( result,"AddRecord",addRecordMethod);
+	AS3_SetS( result,"Update",updateMethod);
+	AS3_SetS( result,"Remove",removeMethod);
 	
 	// Release
 	AS3_Release( initMethod );
@@ -1146,6 +1150,8 @@ int main() {
 	AS3_Release( createBrowserMethod );
 	AS3_Release( beginRegisterMethod );
 	AS3_Release( addRecordMethod );
+	AS3_Release( updateMethod );
+	AS3_Release( removeMethod );
 	
 	// notify that we initialized -- THIS DOES NOT RETURN!
 	AS3_LibInit( result );
