@@ -688,6 +688,43 @@ struct RecordRegistrationRef
 typedef struct RecordRegistrationRef	RecordRegistrationRef;
 
 
+
+static void DNSSD_API	RegisterRecordReply( DNSServiceRef sdRef _UNUSED, 
+											DNSRecordRef recordRef _UNUSED, DNSServiceFlags flags, 
+											DNSServiceErrorType errorCode, void *context)
+{
+	RecordRegistrationRef	*regEnvelope = (RecordRegistrationRef*) context;
+	OpContext		*pContext = regEnvelope->Context;
+	
+	//SetupCallbackState( &pContext->Env);
+	
+	if ( pContext->ClientObj != NULL && pContext->Callback != NULL)
+	{	
+		if ( errorCode == kDNSServiceErr_NoError)
+		{	
+			AS3_Val _flags = AS3_Int(flags);
+            
+            
+            AS3_Val params = AS3_Array("AS3ValType,IntType",regEnvelope->RecordObj, _flags);
+            AS3_Call(pContext->Callback,
+					 pContext->ClientObj,
+					 params);
+			
+            AS3_Release(_flags);
+            
+		}
+		else
+			ReportError( pContext->ClientObj, pContext->as3_Obj, errorCode);
+	}
+	AS3_Release(regEnvelope->RecordObj);
+	
+	free( regEnvelope);
+	
+	//TeardownCallbackState();
+}
+
+
+
 /* TODO:
  * Methods of the original yet to implement (or discard)
  *
@@ -724,33 +761,6 @@ static void	TeardownCallbackState( void )
 
 
 
-
-
-static void DNSSD_API	RegisterRecordReply( DNSServiceRef sdRef _UNUSED, 
-											DNSRecordRef recordRef _UNUSED, DNSServiceFlags flags, 
-											DNSServiceErrorType errorCode, void *context)
-{
-	RecordRegistrationRef	*regEnvelope = (RecordRegistrationRef*) context;
-	OpContext		*pContext = regEnvelope->Context;
-	
-	SetupCallbackState( &pContext->Env);
-	
-	if ( pContext->ClientObj != NULL && pContext->Callback != NULL)
-	{	
-		if ( errorCode == kDNSServiceErr_NoError)
-		{	
-			(*pContext->Env)->CallVoidMethod( pContext->Env, pContext->ClientObj, pContext->Callback, 
-											 regEnvelope->RecordObj, flags);
-		}
-		else
-			ReportError( pContext->Env, pContext->ClientObj, pContext->JavaObj, errorCode);
-	}
-	
-	(*pContext->Env)->DeleteWeakGlobalRef( pContext->Env, regEnvelope->RecordObj);
-	free( regEnvelope);
-	
-	TeardownCallbackState();
-}
 
 JNIEXPORT jint JNICALL Java_com_apple_dnssd_AppleRecordRegistrar_RegisterRecord( JNIEnv *pEnv, jobject pThis, 
 																				jint flags, jint ifIndex, jstring fullname, jint rrType, jint rrClass, 
