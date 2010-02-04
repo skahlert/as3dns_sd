@@ -58,16 +58,14 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#ifdef _WIN32
-#include <winsock2.h>
-#include <iphlpapi.h>
-//static char	*	if_indextoname( DWORD ifIndex, char * nameBuff);
-//static DWORD	if_nametoindex( const char * nameStr );
-#define IF_NAMESIZE MAX_ADAPTER_NAME_LENGTH
-#else // _WIN32
+
 #include <sys/socket.h>
+
+#include <sys/ioctl.h>
 //#include <net/if.h>
-#endif // _WIN32
+
+
+
 
 
 
@@ -956,8 +954,9 @@ static AS3_Val BeginEnum( void* data,AS3_Val args)
 static AS3_Val ConstructName( void* data,AS3_Val args)
 {
 	
-	AS3_Val pThis,serviceName,regtype,domain,pOut;
-	AS3_ArrayValue( args, "AS3ValType,StrType,StrType,StrType,AS3ValType",pThis,serviceName,regtype,domain,pOut);
+	AS3_Val pThis,serviceName,regtype,domain;
+	char *fieldName;
+	AS3_ArrayValue( args, "AS3ValType,StrType,StrType,StrType,StrType",pThis,serviceName,regtype,domain,fieldName);
 	DNSServiceErrorType		err = kDNSServiceErr_NoError;
 	char				*nameStr = AS3_StringValue(serviceName);
 	char				*regStr = AS3_StringValue(regtype);
@@ -972,221 +971,90 @@ static AS3_Val ConstructName( void* data,AS3_Val args)
 		
 		
 		// pOut is expected to be a String[1] array.s
-		AS3_Val arrToCopy = AS3_Array("StrValue",buff);
+		AS3_Val arrToSend = AS3_Array("StrValue",buff);
+		
+		
+		AS3_SetS(pThis,fieldName,arrToSend);
+		
 		//might crash Terribly!!!
 		//memcpy(pOut,arrToCopy,sizeof(arrToCopy));
+		AS3_Release(arrToSend);
 	}
 	
 	free(nameStr);
 	free(regStr);
 	free(domStr);
+				 
+	free(fieldName);
 	
 	return AS3_Int(abs(err));
 }
 
 
-
-/* TODO:
- * Methods of the original yet to implement (or discard)
- *
- *
- *
-
-
-
-
-
-#if AUTO_CALLBACKS
-static void	SetupCallbackState( JNIEnv **ppEnv)
+//JNIEXPORT void JNICALL Java_com_apple_dnssd_AppleDNSSD_ReconfirmRecord( JNIEnv *pEnv, jobject pThis _UNUSED,
+//																	   jint flags, jint ifIndex, jstring fullName,
+//																	   jint rrtype, jint rrclass, jbyteArray rdata)
+static AS3_Val ReconfirmRecord( void* data,AS3_Val args)
 {
-	(*gJavaVM)->AttachCurrentThread( gJavaVM, (void**) ppEnv, NULL);
-}
-
-static void	TeardownCallbackState( void )
-{
-	(*gJavaVM)->DetachCurrentThread( gJavaVM);
-}
-
-#else	// AUTO_CALLBACKS
-
-static void	SetupCallbackState( JNIEnv **ppEnv _UNUSED)
-{
-	// No setup necessary if ProcessResults() has been called
-}
-
-static void	TeardownCallbackState( void )
-{
-	// No teardown necessary if ProcessResults() has been called
-}
-#endif	// AUTO_CALLBACKS
-
-
-
-
-
-JNIEXPORT void JNICALL Java_com_apple_dnssd_AppleDNSSD_ReconfirmRecord( JNIEnv *pEnv, jobject pThis _UNUSED,
-																	   jint flags, jint ifIndex, jstring fullName,
-																	   jint rrtype, jint rrclass, jbyteArray rdata)
-{
-	jbyte					*pBytes;
-	jsize					numBytes;
-	const char				*nameStr = SafeGetUTFChars( pEnv, fullName);
+	AS3_Val pThis;
 	
-	pBytes = (*pEnv)->GetByteArrayElements( pEnv, rdata, NULL);
-	numBytes = (*pEnv)->GetArrayLength( pEnv, rdata);
+	int flags,ifIndex,rrtype,rrclass;
+	char * fullName,*rdata;
 	
-	DNSServiceReconfirmRecord( flags, ifIndex, nameStr, rrtype, rrclass, numBytes, pBytes);
-	
-	if ( pBytes != NULL)
-		(*pEnv)->ReleaseByteArrayElements( pEnv, rdata, pBytes, 0);
-	
-	SafeReleaseUTFChars( pEnv, fullName, nameStr);
-}
+	AS3_ArrayValue( args, "AS3ValType,IntType,IntType,StrType,IntType,IntType,StrType",pThis,&flags,&ifIndex,fullName,&rrtype,&rrclass,rdata);
 
-#define LOCAL_ONLY_NAME "loo"
-
-JNIEXPORT jstring JNICALL Java_com_apple_dnssd_AppleDNSSD_GetNameForIfIndex( JNIEnv *pEnv, jobject pThis _UNUSED,
-																			jint ifIndex)
-{
-	char					*p = LOCAL_ONLY_NAME, nameBuff[IF_NAMESIZE];
+	uint32_t					numBytes;
 	
-	if (ifIndex != (jint) kDNSServiceInterfaceIndexLocalOnly)
-		p = if_indextoname( ifIndex, nameBuff );
+	//pBytes = (*pEnv)->GetByteArrayElements( pEnv, rdata, NULL);
+	numBytes = rdata ? sizeof(rdata)/sizeof(char) : 0;
 	
-	return (*pEnv)->NewStringUTF( pEnv, p);
+	DNSServiceReconfirmRecord( flags, ifIndex, fullName, rrtype, rrclass, numBytes, rdata);
+	
+	
+	
+	free(fullName);
+	free(rdata);
+	
+	return AS3_Null();
 }
 
 
-JNIEXPORT jint JNICALL Java_com_apple_dnssd_AppleDNSSD_GetIfIndexForName( JNIEnv *pEnv, jobject pThis _UNUSED,
-																		 jstring ifName)
-{
-	uint32_t				ifIndex = kDNSServiceInterfaceIndexLocalOnly;
-	const char				*nameStr = SafeGetUTFChars( pEnv, ifName);
-	
-	if (strcmp(nameStr, LOCAL_ONLY_NAME))
-		ifIndex = if_nametoindex( nameStr);
-	
-	SafeReleaseUTFChars( pEnv, ifName, nameStr);
-	
-	return ifIndex;
-}
+
+/*
+ Probably not possible in avm2 sandbox?
+ 
+ 
+ JNIEXPORT jstring JNICALL Java_com_apple_dnssd_AppleDNSSD_GetNameForIfIndex( JNIEnv *pEnv, jobject pThis _UNUSED,
+ jint ifIndex)
+ {
+ char					*p = LOCAL_ONLY_NAME, nameBuff[IF_NAMESIZE];
+ 
+ if (ifIndex != (jint) kDNSServiceInterfaceIndexLocalOnly)
+ p = if_indextoname( ifIndex, nameBuff );
+ 
+ return (*pEnv)->NewStringUTF( pEnv, p);
+ }
+ 
+ 
+ JNIEXPORT jint JNICALL Java_com_apple_dnssd_AppleDNSSD_GetIfIndexForName( JNIEnv *pEnv, jobject pThis _UNUSED,
+ jstring ifName)
+ {
+ uint32_t				ifIndex = kDNSServiceInterfaceIndexLocalOnly;
+ const char				*nameStr = SafeGetUTFChars( pEnv, ifName);
+ 
+ if (strcmp(nameStr, LOCAL_ONLY_NAME))
+ ifIndex = if_nametoindex( nameStr);
+ 
+ SafeReleaseUTFChars( pEnv, ifName, nameStr);
+ 
+ return ifIndex;
+ }
+ 
+ */
 
 
-#if defined(_WIN32)
-static char*
-if_indextoname( DWORD ifIndex, char * nameBuff)
-{
-	PIP_ADAPTER_INFO	pAdapterInfo = NULL;
-	PIP_ADAPTER_INFO	pAdapter = NULL;
-	DWORD				dwRetVal = 0;
-	char			*	ifName = NULL;
-	ULONG				ulOutBufLen = 0;
-	
-	if (GetAdaptersInfo( NULL, &ulOutBufLen) != ERROR_BUFFER_OVERFLOW)
-	{
-		goto exit;
-	}
-	
-	pAdapterInfo = (IP_ADAPTER_INFO *) malloc(ulOutBufLen); 
-	
-	if (pAdapterInfo == NULL)
-	{
-		goto exit;
-	}
-	
-	dwRetVal = GetAdaptersInfo( pAdapterInfo, &ulOutBufLen );
-	
-	if (dwRetVal != NO_ERROR)
-	{
-		goto exit;
-	}
-	
-	pAdapter = pAdapterInfo;
-	while (pAdapter)
-	{
-		if (pAdapter->Index == ifIndex)
-		{
-			// It would be better if we passed in the length of nameBuff to this
-			// function, so we would have absolute certainty that no buffer
-			// overflows would occur.  Buffer overflows *shouldn't* occur because
-			// nameBuff is of size MAX_ADAPTER_NAME_LENGTH.
-			strcpy( nameBuff, pAdapter->AdapterName );
-			ifName = nameBuff;
-			break;
-		}
-		
-		pAdapter = pAdapter->Next;
-	}
-	
-exit:
-	
-	if (pAdapterInfo != NULL)
-	{
-		free( pAdapterInfo );
-		pAdapterInfo = NULL;
-	}
-	
-	return ifName;
-}
 
 
-static DWORD
-if_nametoindex( const char * nameStr )
-{
-	PIP_ADAPTER_INFO	pAdapterInfo = NULL;
-	PIP_ADAPTER_INFO	pAdapter = NULL;
-	DWORD				dwRetVal = 0;
-	DWORD				ifIndex = 0;
-	ULONG				ulOutBufLen = 0;
-
-	if (GetAdaptersInfo( NULL, &ulOutBufLen) != ERROR_BUFFER_OVERFLOW)
-	{
-		goto exit;
-	}
-
-	pAdapterInfo = (IP_ADAPTER_INFO *) malloc(ulOutBufLen); 
-
-	if (pAdapterInfo == NULL)
-	{
-		goto exit;
-	}
-
-	dwRetVal = GetAdaptersInfo( pAdapterInfo, &ulOutBufLen );
-	
-	if (dwRetVal != NO_ERROR)
-	{
-		goto exit;
-	}
-
-	pAdapter = pAdapterInfo;
-	while (pAdapter)
-	{
-		if (strcmp(pAdapter->AdapterName, nameStr) == 0)
-		{
-			ifIndex = pAdapter->Index;
-			break;
-		}
-  
-		pAdapter = pAdapter->Next;
-	}
-
-exit:
-
-	if (pAdapterInfo != NULL)
-	{
-		free( pAdapterInfo );
-		pAdapterInfo = NULL;
-	}
-
-	return ifIndex;
-}
-#endif
-
-
-*/
-
-
-//Muss an den schluss!!!!
 int main() {
  
     AS3_Val hasAutoCallbacksField = AS3_True();
@@ -1205,6 +1073,7 @@ int main() {
 	AS3_Val createQuery = AS3_Function(NULL, CreateQuery);
 	AS3_Val beginEnumMethod = AS3_Function(NULL, BeginEnum);
 	AS3_Val constructNameMethod = AS3_Function(NULL, ConstructName);
+	AS3_Val reconfirmRecordMethod = AS3_Function(NULL, ReconfirmRecord);
 	
 	// construct an object that holds references to the functions
 	/*AS3_Val result = AS3_Object( "hasAutoCallbacks: AS3ValType,InitLibrary: AS3ValType,HaltOperation:AS3ValType,BlockForData:AS3ValType,ProcessResults:AS3ValType,CreateBrowser:AS3ValType ", 
@@ -1232,6 +1101,8 @@ int main() {
 	AS3_SetS( result,"BeginEnum",beginEnumMethod);
 	
 	AS3_SetS( result,"ConstructName",constructNameMethod);
+	AS3_SetS( result,"ReconfirmRecord",reconfirmRecordMethod);
+	
 	
 	// Release
 	AS3_Release( initMethod );
@@ -1250,6 +1121,7 @@ int main() {
 	AS3_Release( createQuery );
 	AS3_Release( beginEnumMethod );
 	AS3_Release( constructNameMethod );
+	AS3_Release( reconfirmRecordMethod );
 	
 	
 	// notify that we initialized -- THIS DOES NOT RETURN!
