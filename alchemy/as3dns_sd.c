@@ -116,7 +116,7 @@ static AS3_Val InitLibrary( void* data,AS3_Val args)
 	return AS3_Int(abs(kDNSServiceErr_NoError));
 }
 
-static OpContext	*NewContext(AS3_Val owner,const char *callbackName, const char *callbackSig)
+static OpContext	*NewContext(AS3_Val owner,const char *callbackName)
 // Create and initialize a new OpContext.
 {
 	OpContext				*pContext = (OpContext*) malloc( sizeof *pContext);
@@ -302,8 +302,7 @@ static AS3_Val CreateBrowser( void* data,AS3_Val args)
 	DNSServiceErrorType		err = kDNSServiceErr_NoError;
 	
 	if ( contextField != NULL)
-		pContext = NewContext( pThis, "serviceFound",
-							  "(Lcom/apple/dnssd/DNSSDService;IILjava/lang/String;Ljava/lang/String;Ljava/lang/String;)V");
+		pContext = NewContext( pThis, "serviceFound");
 	else
 		err = kDNSServiceErr_BadParam;
 	
@@ -395,8 +394,7 @@ static AS3_Val CreateResolver( void* data,AS3_Val args)
 	DNSServiceErrorType		err = kDNSServiceErr_NoError;
 	
 	if ( contextField != NULL)
-		pContext = NewContext( pThis, "serviceResolved",
-							  "(Lcom/apple/dnssd/DNSSDService;IILjava/lang/String;Ljava/lang/String;ILcom/apple/dnssd/TXTRecord;)V");
+		pContext = NewContext( pThis, "serviceResolved");
 	else
 		err = kDNSServiceErr_BadParam;
 	
@@ -479,8 +477,7 @@ static AS3_Val BeginRegister( void* data,AS3_Val args)
 	//syslog(LOG_ERR, "BR: contextField %d", contextField);
 	
 	if ( contextField != NULL)
-		pContext = NewContext( pThis, "serviceRegistered",
-							  "(Lcom/apple/dnssd/DNSSDRegistration;ILjava/lang/String;Ljava/lang/String;Ljava/lang/String;)V");
+		pContext = NewContext( pThis, "serviceRegistered");
 	else
 		err = kDNSServiceErr_BadParam;
 	
@@ -657,7 +654,7 @@ static AS3_Val CreateConnection( void* data,AS3_Val args)
 	DNSServiceErrorType		err = kDNSServiceErr_NoError;
 	
 	if ( contextField != NULL)
-		pContext = NewContext(pThis, "recordRegistered", "(Lcom/apple/dnssd/DNSRecord;I)V");
+		pContext = NewContext(pThis, "recordRegistered");
 	else
 		err = kDNSServiceErr_BadParam;
 	
@@ -850,8 +847,7 @@ static AS3_Val CreateQuery( void* data,AS3_Val args)
 	DNSServiceErrorType		err = kDNSServiceErr_NoError;
 	
 	if ( contextField != NULL)
-		pContext = NewContext(pThis, "queryAnswered",
-							  "(Lcom/apple/dnssd/DNSSDService;IILjava/lang/String;II[BI)V");
+		pContext = NewContext(pThis, "queryAnswered");
 	else
 		err = kDNSServiceErr_BadParam;
 	
@@ -922,8 +918,7 @@ static AS3_Val BeginEnum( void* data,AS3_Val args)
 	DNSServiceErrorType		err = kDNSServiceErr_NoError;
 	
 	if ( contextField != NULL)
-		pContext = NewContext(pThis, "domainFound",
-							  "(Lcom/apple/dnssd/DNSSDService;IILjava/lang/String;)V");
+		pContext = NewContext(pThis, "domainFound");
 	else
 		err = kDNSServiceErr_BadParam;
 	
@@ -1074,15 +1069,7 @@ int main() {
 	AS3_Val beginEnumMethod = AS3_Function(NULL, BeginEnum);
 	AS3_Val constructNameMethod = AS3_Function(NULL, ConstructName);
 	AS3_Val reconfirmRecordMethod = AS3_Function(NULL, ReconfirmRecord);
-	
-	// construct an object that holds references to the functions
-	/*AS3_Val result = AS3_Object( "hasAutoCallbacks: AS3ValType,InitLibrary: AS3ValType,HaltOperation:AS3ValType,BlockForData:AS3ValType,ProcessResults:AS3ValType,CreateBrowser:AS3ValType ", 
-								hasAutoCallbacksField,
-								initMethod,
-								haltOperationMethod,
-								blockForDataMethod,
-								processResultsMethod,
-								createBrowserMethod);*/
+
 	
 	AS3_Val result = AS3_Object( "hasAutoCallbacks: IntType",hasAutoCallbacksField);
 	AS3_SetS( result,"InitLibrary",initMethod);
