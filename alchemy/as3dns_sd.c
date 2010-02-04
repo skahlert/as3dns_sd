@@ -838,6 +838,154 @@ static void DNSSD_API	ServiceQueryReply( DNSServiceRef sdRef _UNUSED, DNSService
 }
 
 
+
+//JNIEXPORT jint JNICALL Java_com_apple_dnssd_AppleQuery_CreateQuery( JNIEnv *pEnv, jobject pThis,
+//																   jint flags, jint ifIndex, jstring serviceName, jint rrtype, jint rrclass)
+static AS3_Val CreateQuery( void* data,AS3_Val args)
+{
+	
+	AS3_Val pThis,flags,ifIndex,serviceName,rrtype,rrclass;
+	AS3_ArrayValue( args, "AS3ValType,IntType,IntType,StringType,IntType,IntType", pThis,flags,ifIndex,serviceName,rrtype,rrclass);
+	AS3_Val contextField = AS3_GetS(pThis,"fNativeContext");
+
+	OpContext				*pContext = NULL;
+	DNSServiceErrorType		err = kDNSServiceErr_NoError;
+	
+	if ( contextField != NULL)
+		pContext = NewContext(pThis, "queryAnswered",
+							  "(Lcom/apple/dnssd/DNSSDService;IILjava/lang/String;II[BI)V");
+	else
+		err = kDNSServiceErr_BadParam;
+	
+	if ( pContext != NULL)
+	{
+		char	*servStr = AS3_StringValue(serviceName);
+		err = DNSServiceQueryRecord( &pContext->ServiceRef, AS3_IntValue(flags), AS3_IntValue(ifIndex), servStr,
+									AS3_IntValue(rrtype), AS3_IntValue(rrclass), ServiceQueryReply, pContext);
+		if ( err == kDNSServiceErr_NoError)
+		{
+			AS3_Val _pContext = AS3_Ptr(pContext);
+			AS3_Set(contextField, pThis,_pContext);
+		}
+		
+		free(servStr);
+	}
+	else
+		err = kDNSServiceErr_NoMemory;
+	
+	return AS3_Int(abs(err));
+}
+
+
+
+static void DNSSD_API	DomainEnumReply( DNSServiceRef sdRef _UNUSED, DNSServiceFlags flags, uint32_t interfaceIndex,
+										DNSServiceErrorType errorCode, const char *replyDomain, void *context)
+{
+	OpContext		*pContext = (OpContext*) context;
+	
+	//SetupCallbackState( &pContext->Env);
+	
+	if ( pContext->ClientObj != NULL && pContext->Callback != NULL)
+	{
+		if ( errorCode == kDNSServiceErr_NoError)
+		{
+			
+			AS3_Val _flags = AS3_Int(flags);
+            AS3_Val _interfaceIndex = AS3_Int(interfaceIndex);
+			AS3_Val _replyDomain = AS3_String(replyDomain);
+
+            
+            AS3_Val params = AS3_Array("AS3ValType,IntType,IntType,StrType",pContext->as3_Obj, _flags,_interfaceIndex,_replyDomain);
+            AS3_Call(( flags & kDNSServiceFlagsAdd) != 0 ? pContext->Callback : pContext->Callback2,
+					 pContext->ClientObj,
+					 params);
+			
+            AS3_Release(_flags);
+			AS3_Release(_interfaceIndex);
+			AS3_Release(_replyDomain);
+		}
+		else
+			ReportError( pContext->ClientObj, pContext->as3_Obj, errorCode);
+	}
+	//TeardownCallbackState();
+}
+
+
+
+//JNIEXPORT jint JNICALL Java_com_apple_dnssd_AppleDomainEnum_BeginEnum( JNIEnv *pEnv, jobject pThis,
+//																	  jint flags, jint ifIndex)
+static AS3_Val BeginEnum( void* data,AS3_Val args)
+{
+	AS3_Val pThis,flags,ifIndex;
+	AS3_ArrayValue( args, "AS3ValType,IntType,IntType", pThis,flags,ifIndex);
+	AS3_Val contextField = AS3_GetS(pThis,"fNativeContext");
+	
+	OpContext				*pContext = NULL;
+	DNSServiceErrorType		err = kDNSServiceErr_NoError;
+	
+	if ( contextField != NULL)
+		pContext = NewContext(pThis, "domainFound",
+							  "(Lcom/apple/dnssd/DNSSDService;IILjava/lang/String;)V");
+	else
+		err = kDNSServiceErr_BadParam;
+	
+	if ( pContext != NULL)
+	{
+		
+		pContext->Callback2 = AS3_GetS(pContext->ClientObj,"domainLost");
+		
+		err = DNSServiceEnumerateDomains( &pContext->ServiceRef, AS3_IntValue(flags), AS3_IntValue(ifIndex),
+										 DomainEnumReply, pContext);
+		if ( err == kDNSServiceErr_NoError)
+		{
+			AS3_Val _pContext = AS3_Ptr(pContext);
+			AS3_Set(pThis,contextField,_pContext);
+			AS3_Release(_pContext);
+		}
+	}
+	else
+		err = kDNSServiceErr_NoMemory;
+	
+	return AS3_Int(abs(err));
+}
+
+/* TODO: Need Workaround for this method!!! */
+
+//JNIEXPORT jint JNICALL Java_com_apple_dnssd_AppleDNSSD_ConstructName( JNIEnv *pEnv, jobject pThis _UNUSED,
+//																	 jstring serviceName, jstring regtype, jstring domain, jobjectArray pOut)
+static AS3_Val ConstructName( void* data,AS3_Val args)
+{
+	
+	AS3_Val pThis,serviceName,regtype,domain,pOut;
+	AS3_ArrayValue( args, "AS3ValType,StrType,StrType,StrType,AS3ValType",pThis,serviceName,regtype,domain,pOut);
+	DNSServiceErrorType		err = kDNSServiceErr_NoError;
+	char				*nameStr = AS3_StringValue(serviceName);
+	char				*regStr = AS3_StringValue(regtype);
+	char				*domStr = AS3_StringValue(domain);
+	char					buff[ kDNSServiceMaxDomainName + 1];
+	
+	err = DNSServiceConstructFullName( buff, nameStr, regStr, domStr);
+	
+	if ( err == kDNSServiceErr_NoError)
+	{
+		
+		
+		
+		// pOut is expected to be a String[1] array.s
+		AS3_Val arrToCopy = AS3_Array("StrValue",buff);
+		//might crash Terribly!!!
+		//memcpy(pOut,arrToCopy,sizeof(arrToCopy));
+	}
+	
+	free(nameStr);
+	free(regStr);
+	free(domStr);
+	
+	return AS3_Int(abs(err));
+}
+
+
+
 /* TODO:
  * Methods of the original yet to implement (or discard)
  *
@@ -875,119 +1023,6 @@ static void	TeardownCallbackState( void )
 
 
 
-JNIEXPORT jint JNICALL Java_com_apple_dnssd_AppleQuery_CreateQuery( JNIEnv *pEnv, jobject pThis,
-																   jint flags, jint ifIndex, jstring serviceName, jint rrtype, jint rrclass)
-{
-	jclass					cls = (*pEnv)->GetObjectClass( pEnv, pThis);
-	jfieldID				contextField = (*pEnv)->GetFieldID( pEnv, cls, "fNativeContext", "I");
-	OpContext				*pContext = NULL;
-	DNSServiceErrorType		err = kDNSServiceErr_NoError;
-	
-	if ( contextField != 0)
-		pContext = NewContext( pEnv, pThis, "queryAnswered",
-							  "(Lcom/apple/dnssd/DNSSDService;IILjava/lang/String;II[BI)V");
-	else
-		err = kDNSServiceErr_BadParam;
-	
-	if ( pContext != NULL)
-	{
-		const char	*servStr = SafeGetUTFChars( pEnv, serviceName);
-		
-		err = DNSServiceQueryRecord( &pContext->ServiceRef, flags, ifIndex, servStr,
-									rrtype, rrclass, ServiceQueryReply, pContext);
-		if ( err == kDNSServiceErr_NoError)
-		{
-			(*pEnv)->SetIntField( pEnv, pThis, contextField, (jint) pContext);
-		}
-		
-		SafeReleaseUTFChars( pEnv, serviceName, servStr);
-	}
-	else
-		err = kDNSServiceErr_NoMemory;
-	
-	return err;
-}
-
-
-static void DNSSD_API	DomainEnumReply( DNSServiceRef sdRef _UNUSED, DNSServiceFlags flags, uint32_t interfaceIndex,
-										DNSServiceErrorType errorCode, const char *replyDomain, void *context)
-{
-	OpContext		*pContext = (OpContext*) context;
-	
-	SetupCallbackState( &pContext->Env);
-	
-	if ( pContext->ClientObj != NULL && pContext->Callback != NULL)
-	{
-		if ( errorCode == kDNSServiceErr_NoError)
-		{
-			(*pContext->Env)->CallVoidMethod( pContext->Env, pContext->ClientObj,
-											 ( flags & kDNSServiceFlagsAdd) != 0 ? pContext->Callback : pContext->Callback2,
-											 pContext->JavaObj, flags, interfaceIndex,
-											 (*pContext->Env)->NewStringUTF( pContext->Env, replyDomain));
-		}
-		else
-			ReportError( pContext->Env, pContext->ClientObj, pContext->JavaObj, errorCode);
-	}
-	TeardownCallbackState();
-}
-
-JNIEXPORT jint JNICALL Java_com_apple_dnssd_AppleDomainEnum_BeginEnum( JNIEnv *pEnv, jobject pThis,
-																	  jint flags, jint ifIndex)
-{
-	jclass					cls = (*pEnv)->GetObjectClass( pEnv, pThis);
-	jfieldID				contextField = (*pEnv)->GetFieldID( pEnv, cls, "fNativeContext", "I");
-	OpContext				*pContext = NULL;
-	DNSServiceErrorType		err = kDNSServiceErr_NoError;
-	
-	if ( contextField != 0)
-		pContext = NewContext( pEnv, pThis, "domainFound",
-							  "(Lcom/apple/dnssd/DNSSDService;IILjava/lang/String;)V");
-	else
-		err = kDNSServiceErr_BadParam;
-	
-	if ( pContext != NULL)
-	{
-		pContext->Callback2 = (*pEnv)->GetMethodID( pEnv,
-												   (*pEnv)->GetObjectClass( pEnv, pContext->ClientObj),
-												   "domainLost", "(Lcom/apple/dnssd/DNSSDService;IILjava/lang/String;)V");
-		
-		err = DNSServiceEnumerateDomains( &pContext->ServiceRef, flags, ifIndex,
-										 DomainEnumReply, pContext);
-		if ( err == kDNSServiceErr_NoError)
-		{
-			(*pEnv)->SetIntField( pEnv, pThis, contextField, (jint) pContext);
-		}
-	}
-	else
-		err = kDNSServiceErr_NoMemory;
-	
-	return err;
-}
-
-
-JNIEXPORT jint JNICALL Java_com_apple_dnssd_AppleDNSSD_ConstructName( JNIEnv *pEnv, jobject pThis _UNUSED,
-																	 jstring serviceName, jstring regtype, jstring domain, jobjectArray pOut)
-{
-	DNSServiceErrorType		err = kDNSServiceErr_NoError;
-	const char				*nameStr = SafeGetUTFChars( pEnv, serviceName);
-	const char				*regStr = SafeGetUTFChars( pEnv, regtype);
-	const char				*domStr = SafeGetUTFChars( pEnv, domain);
-	char					buff[ kDNSServiceMaxDomainName + 1];
-	
-	err = DNSServiceConstructFullName( buff, nameStr, regStr, domStr);
-	
-	if ( err == kDNSServiceErr_NoError)
-	{
-		// pOut is expected to be a String[1] array.
-		(*pEnv)->SetObjectArrayElement( pEnv, pOut, 0, (*pEnv)->NewStringUTF( pEnv, buff));
-	}
-	
-	SafeReleaseUTFChars( pEnv, serviceName, nameStr);
-	SafeReleaseUTFChars( pEnv, regtype, regStr);
-	SafeReleaseUTFChars( pEnv, domain, domStr);
-	
-	return err;
-}
 
 JNIEXPORT void JNICALL Java_com_apple_dnssd_AppleDNSSD_ReconfirmRecord( JNIEnv *pEnv, jobject pThis _UNUSED,
 																	   jint flags, jint ifIndex, jstring fullName,
@@ -1167,6 +1202,10 @@ int main() {
 	AS3_Val createConnectionMethod = AS3_Function(NULL, CreateConnection);
 	AS3_Val createResolverMethod = AS3_Function(NULL, CreateResolver);
 	AS3_Val registerRecordMethod = AS3_Function(NULL, RegisterRecord);
+	AS3_Val createQuery = AS3_Function(NULL, CreateQuery);
+	AS3_Val beginEnumMethod = AS3_Function(NULL, BeginEnum);
+	AS3_Val constructNameMethod = AS3_Function(NULL, ConstructName);
+	
 	// construct an object that holds references to the functions
 	/*AS3_Val result = AS3_Object( "hasAutoCallbacks: AS3ValType,InitLibrary: AS3ValType,HaltOperation:AS3ValType,BlockForData:AS3ValType,ProcessResults:AS3ValType,CreateBrowser:AS3ValType ", 
 								hasAutoCallbacksField,
@@ -1189,6 +1228,10 @@ int main() {
 	AS3_SetS( result,"CreateConnection",createConnectionMethod);
 	AS3_SetS( result,"CreateResolver",createResolverMethod);
 	AS3_SetS( result,"RegisterRecord",registerRecordMethod);
+	AS3_SetS( result,"CreateQuery",createQuery);
+	AS3_SetS( result,"BeginEnum",beginEnumMethod);
+	
+	AS3_SetS( result,"ConstructName",constructNameMethod);
 	
 	// Release
 	AS3_Release( initMethod );
@@ -1204,6 +1247,10 @@ int main() {
 	AS3_Release( createConnectionMethod );
 	AS3_Release( createResolverMethod );
 	AS3_Release( registerRecordMethod );
+	AS3_Release( createQuery );
+	AS3_Release( beginEnumMethod );
+	AS3_Release( constructNameMethod );
+	
 	
 	// notify that we initialized -- THIS DOES NOT RETURN!
 	AS3_LibInit( result );
