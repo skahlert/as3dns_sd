@@ -39,9 +39,9 @@ package de.unknown.dnssd
 			return _lib.CreateBrowser(caller,flags,ifIndex,regType,domain);
 		}
 		
-		static public function CreateResolver(caller:UnknownService,flags:uint,ifIndex:uint,regType:String,domain:String):int
+		static public function CreateResolver(caller:UnknownService,flags:uint,ifIndex:uint,serviceName:String,domain:String):int
 		{
-			return _lib.CreateResolver(caller,flags,ifIndex,regType,domain);
+			return _lib.CreateResolver(caller,flags,ifIndex,serviceName,domain);
 		}
 		
 		static public function BeginRegister(caller:UnknownService,ifIndex:uint,flags:uint,serviceName:String,regType:String,domain:String,host:String,port:uint,txtRecord:String):int
@@ -84,7 +84,7 @@ package de.unknown.dnssd
 			return _lib.ConstructName(caller,serviceName,regtype,domain,fieldName);
 		}
 		
-		static public function ReconfirmRecord(caller:UnknownService,flags:uint,ifIndex:uint,fullName:String,rrtype:uint,rrclass:uint,rdata:String):int
+		static public function ReconfirmRecord(caller:UnknownDNSSD,flags:uint,ifIndex:uint,fullName:String,rrtype:uint,rrclass:uint,rdata:String):int
 		{
 			return _lib.ReconfirmRecord(caller,flags,ifIndex,fullName,rrtype,rrclass,rdata);
 		}
