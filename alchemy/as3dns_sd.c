@@ -105,7 +105,7 @@ struct	OpContext
 
 
 //JNIEXPORT jint JNICALL Java_com_apple_dnssd_AppleDNSSD_InitLibrary( JNIEnv *pEnv, jclass cls, jint callerVersion)
-static AS3_Val InitLibrary( void* data,AS3_Val args)
+static AS3_Val AS3_Thunk_InitLibrary( void* data,AS3_Val args)
 {
 	int callerVersion = 0;
     AS3_ArrayValue( args, "IntType", &callerVersion );
@@ -146,7 +146,7 @@ static void			ReportError(AS3_Val target, AS3_Val service, DNSServiceErrorType e
 	AS3_Release(params);
 }
 
-static AS3_Val HaltOperation( void* data,AS3_Val args) //AS3_Val pThis)
+static AS3_Val AS3_Thunk_HaltOperation( void* data,AS3_Val args) //AS3_Val pThis)
 /* Deallocate the dns_sd service browser and set the Java object's fNativeContext field to 0. */
 {
 	AS3_Val pThis; 
@@ -171,7 +171,7 @@ static AS3_Val HaltOperation( void* data,AS3_Val args) //AS3_Val pThis)
 
 }
 
-static AS3_Val BlockForData( void* data,AS3_Val args)
+static AS3_Val AS3_Thunk_BlockForData( void* data,AS3_Val args)
 /* Block until data arrives, or one second passes. Returns 1 if data present, 0 otherwise. */
 {
 	// BlockForData() not supported with AUTO_CALLBACKS 
@@ -213,7 +213,7 @@ static AS3_Val BlockForData( void* data,AS3_Val args)
 }
 
 
-static AS3_Val ProcessResults( void* data,AS3_Val args)
+static AS3_Val AS3_Thunk_ProcessResults( void* data,AS3_Val args)
 /* Call through to DNSServiceProcessResult() while data remains on socket. */
 {
 #if !AUTO_CALLBACKS	// ProcessResults() not supported with AUTO_CALLBACKS 
@@ -292,7 +292,7 @@ static void DNSSD_API	ServiceBrowseReply( DNSServiceRef sdRef _UNUSED, DNSServic
 
 //JNIEXPORT jint JNICALL Java_com_apple_dnssd_AppleBrowser_CreateBrowser( JNIEnv *pEnv, jobject pThis,
 //																	   jint flags, jint ifIndex, jstring regType, jstring domain)
-static AS3_Val CreateBrowser( void* data,AS3_Val args)
+static AS3_Val AS3_Thunk_CreateBrowser( void* data,AS3_Val args)
 {
 	AS3_Val pThis,flags,ifIndex,regType,domain;
 	AS3_ArrayValue( args, "AS3ValType,IntType,IntType,StrType,StrType", pThis,flags,ifIndex,regType,domain );
@@ -384,7 +384,7 @@ static void DNSSD_API	ServiceResolveReply( DNSServiceRef sdRef _UNUSED, DNSServi
 
 //JNIEXPORT jint JNICALL Java_com_apple_dnssd_AppleResolver_CreateResolver( JNIEnv *pEnv, jobject pThis,
 //																		 jint flags, jint ifIndex, jstring serviceName, jstring regType, jstring domain)
-static AS3_Val CreateResolver( void* data,AS3_Val args)
+static AS3_Val AS3_Thunk_CreateResolver( void* data,AS3_Val args)
 {
 	AS3_Val pThis,flags,ifIndex,serviceName,regType,domain;
 	AS3_ArrayValue( args, "AS3ValType,IntType,IntType,StrType,StrType,StrType", pThis,flags,ifIndex,regType,serviceName,domain );
@@ -462,7 +462,7 @@ static void DNSSD_API	ServiceRegisterReply( DNSServiceRef sdRef _UNUSED, DNSServ
 //JNIEXPORT jint JNICALL Java_com_apple_dnssd_AppleRegistration_BeginRegister( JNIEnv *pEnv, jobject pThis,
 //																			jint ifIndex, jint flags, jstring serviceName, jstring regType,
 //																			jstring domain, jstring host, jint port, jbyteArray txtRecord)
-static AS3_Val BeginRegister( void* data,AS3_Val args)
+static AS3_Val AS3_Thunk_BeginRegister( void* data,AS3_Val args)
 {
 	
     AS3_Val pThis,ifIndex,flags,serviceName,regType,domain,host,port,txtRecord;
@@ -527,7 +527,7 @@ static AS3_Val BeginRegister( void* data,AS3_Val args)
 
 //JNIEXPORT jint JNICALL Java_com_apple_dnssd_AppleRegistration_AddRecord( JNIEnv *pEnv, jobject pThis,
 //																		jint flags, jint rrType, jbyteArray rData, jint ttl, jobject destObj)
-static AS3_Val AddRecord( void* data,AS3_Val args)
+static AS3_Val AS3_Thunk_AddRecord( void* data,AS3_Val args)
 {
 	AS3_Val pThis,flags,rrType,rData,ttl,destObj;
 	AS3_ArrayValue( args, "AS3ValType,IntType,IntType,StrType,IntType,AS3ValType", pThis,flags,rrType,rData,ttl,destObj);
@@ -570,7 +570,7 @@ static AS3_Val AddRecord( void* data,AS3_Val args)
 
 //JNIEXPORT jint JNICALL Java_com_apple_dnssd_AppleDNSRecord_Update( JNIEnv *pEnv, jobject pThis,
 //																  jint flags, jbyteArray rData, jint ttl)
-static AS3_Val Update( void* data,AS3_Val args)
+static AS3_Val AS3_Thunk_Update( void* data,AS3_Val args)
 {
 	AS3_Val pThis,flags,rData,ttl;
 	AS3_ArrayValue( args, "AS3ValType,IntType,StrType,IntType", pThis,flags,rData,ttl);
@@ -613,7 +613,7 @@ static AS3_Val Update( void* data,AS3_Val args)
 
 
 //JNIEXPORT jint JNICALL Java_com_apple_dnssd_AppleDNSRecord_Remove( JNIEnv *pEnv, jobject pThis)
-static AS3_Val Remove( void* data,AS3_Val args)
+static AS3_Val AS3_Thunk_Remove( void* data,AS3_Val args)
 {
 	AS3_Val pThis;
 	AS3_ArrayValue( args, "AS3ValType", pThis);
@@ -643,7 +643,7 @@ static AS3_Val Remove( void* data,AS3_Val args)
 
 
 //JNIEXPORT jint JNICALL Java_com_apple_dnssd_AppleRecordRegistrar_CreateConnection( JNIEnv *pEnv, jobject pThis)
-static AS3_Val CreateConnection( void* data,AS3_Val args)
+static AS3_Val AS3_Thunk_CreateConnection( void* data,AS3_Val args)
 {
 	AS3_Val pThis;
 	AS3_ArrayValue( args, "AS3ValType", pThis);
@@ -725,11 +725,11 @@ static void DNSSD_API	RegisterRecordReply( DNSServiceRef sdRef _UNUSED,
 //JNIEXPORT jint JNICALL Java_com_apple_dnssd_AppleRecordRegistrar_RegisterRecord( JNIEnv *pEnv, jobject pThis, 
 //																				jint flags, jint ifIndex, jstring fullname, jint rrType, jint rrClass, 
 //																				jbyteArray rData, jint ttl, jobject destObj)
-static AS3_Val RegisterRecord( void* data,AS3_Val args)
+static AS3_Val AS3_Thunk_RegisterRecord( void* data,AS3_Val args)
 {
 	
 	AS3_Val pThis,flags,ifIndex,fullname,rrType,rrClass,rData,ttl, destObj;
-	AS3_ArrayValue( args, "AS3ValType,IntType,IntType,StringType,IntType,IntType,StringType,IntType,IntType,AS3ValType", pThis,flags,ifIndex,fullname,rrType,rrClass,rData,ttl, destObj);
+	AS3_ArrayValue( args, "AS3ValType,IntType,IntType,StringType,IntType,IntType,StringType,IntType,AS3ValType", pThis,flags,ifIndex,fullname,rrType,rrClass,rData,ttl, destObj);
 	AS3_Val contextField = AS3_GetS(pThis,"fNativeContext");
 	AS3_Val recField = AS3_GetS(destObj,"fRecord");
 	OpContext				*pContext = NULL;
@@ -836,7 +836,7 @@ static void DNSSD_API	ServiceQueryReply( DNSServiceRef sdRef _UNUSED, DNSService
 
 //JNIEXPORT jint JNICALL Java_com_apple_dnssd_AppleQuery_CreateQuery( JNIEnv *pEnv, jobject pThis,
 //																   jint flags, jint ifIndex, jstring serviceName, jint rrtype, jint rrclass)
-static AS3_Val CreateQuery( void* data,AS3_Val args)
+static AS3_Val AS3_Thunk_CreateQuery( void* data,AS3_Val args)
 {
 	
 	AS3_Val pThis,flags,ifIndex,serviceName,rrtype,rrclass;
@@ -908,7 +908,7 @@ static void DNSSD_API	DomainEnumReply( DNSServiceRef sdRef _UNUSED, DNSServiceFl
 
 //JNIEXPORT jint JNICALL Java_com_apple_dnssd_AppleDomainEnum_BeginEnum( JNIEnv *pEnv, jobject pThis,
 //																	  jint flags, jint ifIndex)
-static AS3_Val BeginEnum( void* data,AS3_Val args)
+static AS3_Val AS3_Thunk_BeginEnum( void* data,AS3_Val args)
 {
 	AS3_Val pThis,flags,ifIndex;
 	AS3_ArrayValue( args, "AS3ValType,IntType,IntType", pThis,flags,ifIndex);
@@ -946,7 +946,7 @@ static AS3_Val BeginEnum( void* data,AS3_Val args)
 
 //JNIEXPORT jint JNICALL Java_com_apple_dnssd_AppleDNSSD_ConstructName( JNIEnv *pEnv, jobject pThis _UNUSED,
 //																	 jstring serviceName, jstring regtype, jstring domain, jobjectArray pOut)
-static AS3_Val ConstructName( void* data,AS3_Val args)
+static AS3_Val AS3_Thunk_ConstructName( void* data,AS3_Val args)
 {
 	
 	AS3_Val pThis,serviceName,regtype,domain;
@@ -989,7 +989,7 @@ static AS3_Val ConstructName( void* data,AS3_Val args)
 //JNIEXPORT void JNICALL Java_com_apple_dnssd_AppleDNSSD_ReconfirmRecord( JNIEnv *pEnv, jobject pThis _UNUSED,
 //																	   jint flags, jint ifIndex, jstring fullName,
 //																	   jint rrtype, jint rrclass, jbyteArray rdata)
-static AS3_Val ReconfirmRecord( void* data,AS3_Val args)
+static AS3_Val AS3_Thunk_ReconfirmRecord( void* data,AS3_Val args)
 {
 	AS3_Val pThis;
 	
@@ -1053,22 +1053,22 @@ static AS3_Val ReconfirmRecord( void* data,AS3_Val args)
 int main() {
  
     AS3_Val hasAutoCallbacksField = AS3_True();
-	AS3_Val initMethod = AS3_Function( NULL, InitLibrary );
-	AS3_Val haltOperationMethod = AS3_Function( NULL, HaltOperation );
-	AS3_Val blockForDataMethod = AS3_Function(NULL, BlockForData);
-	AS3_Val processResultsMethod = AS3_Function(NULL, ProcessResults);
-	AS3_Val createBrowserMethod = AS3_Function(NULL, CreateBrowser);
-	AS3_Val beginRegisterMethod = AS3_Function(NULL, BeginRegister); 
-	AS3_Val addRecordMethod = AS3_Function(NULL, AddRecord);
-	AS3_Val updateMethod = AS3_Function(NULL, Update); 
-	AS3_Val removeMethod = AS3_Function(NULL, Remove);
-	AS3_Val createConnectionMethod = AS3_Function(NULL, CreateConnection);
-	AS3_Val createResolverMethod = AS3_Function(NULL, CreateResolver);
-	AS3_Val registerRecordMethod = AS3_Function(NULL, RegisterRecord);
-	AS3_Val createQuery = AS3_Function(NULL, CreateQuery);
-	AS3_Val beginEnumMethod = AS3_Function(NULL, BeginEnum);
-	AS3_Val constructNameMethod = AS3_Function(NULL, ConstructName);
-	AS3_Val reconfirmRecordMethod = AS3_Function(NULL, ReconfirmRecord);
+	AS3_Val initMethod = AS3_Function( NULL, AS3_Thunk_InitLibrary );
+	AS3_Val haltOperationMethod = AS3_Function( NULL, AS3_Thunk_HaltOperation );
+	AS3_Val blockForDataMethod = AS3_Function(NULL, AS3_Thunk_BlockForData);
+	AS3_Val processResultsMethod = AS3_Function(NULL, AS3_Thunk_ProcessResults);
+	AS3_Val createBrowserMethod = AS3_Function(NULL, AS3_Thunk_CreateBrowser);
+	AS3_Val beginRegisterMethod = AS3_Function(NULL, AS3_Thunk_BeginRegister); 
+	AS3_Val addRecordMethod = AS3_Function(NULL, AS3_Thunk_AddRecord);
+	AS3_Val updateMethod = AS3_Function(NULL, AS3_Thunk_Update); 
+	AS3_Val removeMethod = AS3_Function(NULL, AS3_Thunk_Remove);
+	AS3_Val createConnectionMethod = AS3_Function(NULL, AS3_Thunk_CreateConnection);
+	AS3_Val createResolverMethod = AS3_Function(NULL, AS3_Thunk_CreateResolver);
+	AS3_Val registerRecordMethod = AS3_Function(NULL, AS3_Thunk_RegisterRecord);
+	AS3_Val createQuery = AS3_Function(NULL, AS3_Thunk_CreateQuery);
+	AS3_Val beginEnumMethod = AS3_Function(NULL, AS3_Thunk_BeginEnum);
+	AS3_Val constructNameMethod = AS3_Function(NULL, AS3_Thunk_ConstructName);
+	AS3_Val reconfirmRecordMethod = AS3_Function(NULL, AS3_Thunk_ReconfirmRecord);
 
 	
 	AS3_Val result = AS3_Object( "hasAutoCallbacks: IntType",hasAutoCallbacksField);
